@@ -262,6 +262,11 @@
             align-items: center;
             justify-content: center;
             text-align: left;
+            padding: 0 1rem;
+        }
+
+        .card-content > div {
+            width: 100%;
         }
 
         .card-front .card-content {
@@ -572,7 +577,7 @@
                         <span id="cardNumber">1 / 95</span>
                     </div>
                     <div class="card-content" id="questionText">
-                        Click shuffle to start studying
+                        <div>Click shuffle to start studying</div>
                     </div>
                     <div class="card-footer">Click card to reveal answer</div>
                 </div>
@@ -582,7 +587,7 @@
                         <span id="cardNumberBack">1 / 95</span>
                     </div>
                     <div class="card-content" id="answerText">
-                        Answer will appear here
+                        <div>Answer will appear here</div>
                     </div>
                     <div class="card-footer">Click card to see question</div>
                 </div>
@@ -653,7 +658,7 @@
             
             // MEMORY ITEMS
             { category: 'memory', question: 'What are the memory items for Aborted Engine Start?', answer: '1. (Left/Right) FUEL CONTROL switch .......................... CUTOFF' },
-            { category: 'memory', question: 'What are the memory items for Airspeed Unreliable?', answer: '1. Autopilot disconnect switch         Push<br>2. A/T ARM switches (both)      OFF<br>3. F/D switches (both)          . OFF<br>4. Set the following gear up pitch attitude and thrust:<ul><li>Flaps extended       10 degrees and 85% N1</li><li>Flaps Up        4 degrees and 70% N1</li></ul>' },
+            { category: 'memory', question: 'What are the memory items for Airspeed Unreliable?', answer: '1. Autopilot disconnect switch................................................Push<br>2. A/T ARM switches (both) .................................................... OFF<br>3. F/D switches (both)............................................................. OFF<br>4. Set the following gear up pitch attitude and thrust:<ul><li>Flaps extended.................................... 10 degrees and 85% N1</li><li>Flaps Up................................................ 4 degrees and 70% N1</li></ul>' },
             { category: 'memory', question: 'What are the memory items for CABIN ALTITUDE?', answer: '1. Don the oxygen masks<br>2. Establish crew communications<br>3. Check the cabin altitude and rate<br>4. If cabin altitude is uncontrollable:<ul><li>PASS OXYGEN switch .............................. push to ON and hold for 1 second</li><li><strong>Without delay</strong>, descend to the lowest safe altitude or 10,000 ft, whichever is higher</li><li>To descend:<ul><li>Move the thrust levers to idle</li><li>Extend the speedbrakes</li><li>If structural integrity is in doubt, limit airspeed and avoid high maneuvering loads.</li><li>Descend at Vmo/Mmo</li></ul></li></ul>' },
             { category: 'memory', question: 'What are the memory items for Dual Engine Fail/Stall?', answer: '1. FUEL CONTROL switches (both).............. CUTOFF, then RUN<br>2. RAM AIR TURBINE switch..................................Push and hold for 1 second' },
             { category: 'memory', question: 'What are the memory items for ENGINE AUTOSTART L, R?', answer: '1. (Left/Right) FUEL CONTROL switch.....Confirm......... CUTOFF' },
@@ -747,15 +752,15 @@
 
         function updateCard() {
             if (currentDeck.length === 0) {
-                questionText.innerHTML = 'No cards available';
-                answerText.innerHTML = 'Select a different category';
+                questionText.innerHTML = '<div>No cards available</div>';
+                answerText.innerHTML = '<div>Select a different category</div>';
                 categoryLabel.textContent = '';
                 return;
             }
 
             const card = currentDeck[currentIndex];
-            questionText.innerHTML = card.question;
-            answerText.innerHTML = card.answer;
+            questionText.innerHTML = `<div>${card.question}</div>`;
+            answerText.innerHTML = `<div>${card.answer}</div>`;
             categoryLabel.textContent = getCategoryName(card.category);
             
             const cardNum = `${currentIndex + 1} / ${currentDeck.length}`;
