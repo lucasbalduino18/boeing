@@ -1,0 +1,2394 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>PMDG 737 Pedestal Tablet</title>
+  <style>
+    :root { --text:#e6e6e6; --amber:#f4b33c; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body {
+      margin:0; min-height:0vh; background:radial-gradient(circle at 50% 20%, #303030, #050505 70%);
+      font-family:Arial, Helvetica, sans-serif; color:var(--text); display:flex; align-items:center; justify-content:center; overflow:auto;
+    }
+    
+    
+    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; background:#b33; box-shadow:0 0 8px #b33; }
+    .dot.online { background:#3bd267; box-shadow:0 0 10px #3bd267; }
+
+    /* Bridge indicator square */
+    .bridge-indicator {
+      width:18px; height:18px; border-radius:4px; cursor:pointer;
+      background:#b33; box-shadow:0 0 6px #b33; border:1px solid rgba(255,255,255,.15);
+      transition:background .3s, box-shadow .3s;
+      flex-shrink:0;
+    }
+    .bridge-indicator.online { background:#3bd267; box-shadow:0 0 8px #3bd267; }
+
+    /* Bridge IP modal overlay */
+    .bridge-modal-overlay {
+      display:none; position:fixed; inset:0; z-index:9999;
+      background:rgba(0,0,0,.7); align-items:center; justify-content:center;
+    }
+    .bridge-modal-overlay.open { display:flex; }
+    .bridge-modal {
+      background:#1a1a1a; border:1px solid #444; border-radius:10px;
+      padding:22px 26px; min-width:300px; max-width:90vw;
+      box-shadow:0 8px 32px rgba(0,0,0,.6);
+    }
+    .bridge-modal h3 { margin:0 0 14px; font-size:15px; color:#ccc; font-weight:600; letter-spacing:.04em; }
+    .bridge-modal label { display:block; font-size:12px; color:#888; margin-bottom:5px; }
+    .bridge-modal input[type="text"] {
+      width:100%; padding:9px 12px; font-size:15px; font-family:monospace;
+      background:#111; color:#e6e6e6; border:1px solid #555; border-radius:6px;
+      outline:none;
+    }
+    .bridge-modal input[type="text"]:focus { border-color:#3bd267; }
+    .bridge-modal .btn-row { display:flex; gap:10px; margin-top:16px; justify-content:flex-end; }
+    .bridge-modal button {
+      padding:8px 18px; border:none; border-radius:6px; font-size:13px; cursor:pointer;
+      font-weight:600; letter-spacing:.03em;
+    }
+    .bridge-modal .btn-save { background:#3bd267; color:#111; }
+    .bridge-modal .btn-save:active { background:#2fa855; }
+    .bridge-modal .btn-cancel { background:#333; color:#aaa; }
+    .bridge-modal .btn-cancel:active { background:#444; }
+
+    /* FIRE PANEL: salve a imagem em assets/fire-panel-pmdg.png */
+    .fire-photo-panel {
+	  grid-column:1 / -1;
+	  justify-self:center;
+	  position:relative;
+	  z-index:2;
+	  width:min(100%,1180px);
+	  aspect-ratio:1508 / 372;
+	  min-height:210px;
+	  background-image:url("assets/fire-panel-pmdg.png");
+	  background-size:cover;
+	  background-position:center;
+	  border-radius:14px;
+	  border:3px solid #050505;
+	  box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65);
+	  overflow:hidden;
+	}
+    .fire-photo-panel::after,.radio-photo-panel::after {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background:radial-gradient(circle at 35% 20%,rgba(255,255,255,.05),transparent 25%),linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.13));
+      mix-blend-mode:screen; z-index:1;
+    }
+    .fire-hotspot,.radio-hotspot {
+      position:absolute; background:rgba(255,255,255,0); border:0; box-shadow:none; padding:0; cursor:pointer; z-index:5; border-radius:10px; touch-action:none;
+    }
+    .fire-hotspot:active,.radio-hotspot:active { background:rgba(255,255,255,.08); }
+    .fire-debug {
+      position:relative;
+      width:100%;
+      text-align:right;
+      margin-top:0px;
+      padding:0px 10px;
+      color:#f2b44c;
+      font-size:8px;
+      letter-spacing:.06em;
+      background:rgba(0,0,0,0);
+      border-radius:6px;
+    }
+    .eng1-handle { left:18.2%; top:19.5%; width:7.8%; height:75%; }
+    .eng1-disch-l { left:14.2%; top:50.0%; width:3.9%; height:30%; }
+    .eng1-disch-r { left:26.1%; top:50.0%; width:3.9%; height:30%; }
+    .apu-handle { left:46.0%; top:19.5%; width:7.4%; height:75%; }
+    .apu-disch-l { left:42.0%; top:50%; width:3.9%; height:30%; }
+    .apu-disch-r { left:53.5%; top:50%; width:3.9%; height:30%; }
+    .eng2-handle { left:73.0%; top:19.5%; width:7.8%; height:78%; }
+    .eng2-disch-l { left:69.0%; top:50.0%; width:3.9%; height:30%; }
+    .eng2-disch-r { left:79.9%; top:50.0%; width:3.9%; height:30%; }
+
+    .fire-overlay {
+      position:absolute; z-index:6; pointer-events:none; opacity:1;
+      width:auto; height:auto; object-fit:contain;
+      transition:opacity .15s ease, transform .25s ease, filter .15s ease;
+      transform-origin:center bottom;
+    }
+    .fire-overlay.active {
+      animation:fireBlink 1s infinite alternate;
+    }
+    .fire-overlay.pulled { transform:scale(1.08) translateY(-3%); }
+    .fire-overlay.pulled.active { transform:scale(1.08) translateY(-3%); }
+    .fire-overlay.turned-left { transform:scale(1.08) translateY(-3%) rotate(-8deg); }
+    .fire-overlay.turned-right { transform:scale(1.08) translateY(-3%) rotate(8deg); }
+    .fire-overlay.turned-left.active { transform:scale(1.08) translateY(-3%) rotate(-8deg); }
+    .fire-overlay.turned-right.active { transform:scale(1.08) translateY(-3%) rotate(8deg); }
+
+    /* Fire glow overlay — sits on top of the handle image */
+    .fire-glow {
+      position:absolute; z-index:7; pointer-events:none; opacity:0;
+      border-radius:6px;
+      background:radial-gradient(ellipse at 50% 40%, rgba(255,60,20,.55) 0%, rgba(200,0,0,.35) 50%, transparent 80%);
+      mix-blend-mode:screen;
+      transition:opacity .2s ease, transform .25s ease;
+      transform-origin:center bottom;
+    }
+    .fire-glow.active {
+      opacity:1;
+      animation:fireGlowBlink 1s infinite alternate;
+    }
+    .fire-glow.pulled { transform:scale(1.08) translateY(-3%); }
+    .fire-glow.pulled.active { transform:scale(1.08) translateY(-3%); }
+    .fire-glow.turned-left { transform:scale(1.08) translateY(-3%) rotate(-8deg); }
+    .fire-glow.turned-right { transform:scale(1.08) translateY(-3%) rotate(8deg); }
+    .fire-glow.turned-left.active { transform:scale(1.08) translateY(-3%) rotate(-8deg); }
+    .fire-glow.turned-right.active { transform:scale(1.08) translateY(-3%) rotate(8deg); }
+    .overlay-eng1 { left:18.2%; top:21.5%; height:75%; transform:rotate(1deg); }
+    .overlay-apu  { left:46%; top:21.5%; height:75%; }
+    .overlay-eng2 { left:73%; top:21.5%; height:75%; }
+    .glow-eng1 { left:18.2%; top:21.5%; width:7.2%; height:75%; }
+    .glow-apu  { left:46%; top:21.5%; width:6.9%; height:75%; }
+    .glow-eng2 { left:73%; top:21.5%; width:7.2%; height:75%; }
+    @keyframes fireBlink { 0%{filter:brightness(1);} 100%{filter:brightness(1.3);} }
+    @keyframes fireGlowBlink { 0%{opacity:.7;} 100%{opacity:1;} }
+
+    .annun {
+      position:absolute;
+      z-index:5;
+      pointer-events:none;
+      opacity:0;
+      transition:opacity .12s ease;
+    }
+
+    .annun.active {
+      opacity:1;
+      filter:drop-shadow(0 0 6px rgba(255,180,0,.8));
+    }   
+	
+    .annun-fault { left:31.7%; top:26.8%; width:10.1%; height:18.5%; opacity: 0.2;}
+    .annun-apu-det-inop { left:31.7%; top:50.8%; width:10.1%; height:18.5%; opacity: 0.2;}
+	.annun-wheel-well { left:31.9%; top:6%; width:10.3%; height: 19%; opacity: 0.2;}
+	.annun-eng1-overheat { left:6.8%; top:42.9%; width:9.5%; height: 19%; opacity: 0.2;}
+    .annun-apu-bottle { left:31.7%; top:74%; width:10%; opacity: 0.2;}
+    .annun-eng2-overheat { left:59.3%; top:42.5%; width:10%; height: 22%; opacity: 0.2;}	
+    .annun-l-bottle { left:71.0%; top:8.0%; width:10%; height: 19%; z-index: 1; opacity: 0.2;}
+    .annun-r-bottle { left:81.5%; top:7.0%; width:10%; height: 20.6%; opacity: 0.2;}
+
+    .annun-overlay.active {
+      opacity:1;
+      animation: annunBlink .55s infinite alternate;
+    }
+
+    @keyframes annunBlink {
+      0% { filter:brightness(.75); }
+      100% { filter:brightness(1.8); }
+    }
+
+    /* RADIO PANEL:  */
+    .radio-photo-panel {
+      position:relative; width:100%; aspect-ratio:730 / 672; min-height:360px;
+      background-image:url("assets/radio-vhf-nav-pmdg.png"); background-size:cover; background-position:center;
+      border-radius:8px; border:3px solid #050505; box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65); overflow:hidden;
+    }
+    .photo-display {
+      position:absolute; font-family:"Courier New", monospace; font-weight:500; color:var(--amber);
+      text-shadow:0 0 7px rgba(255,160,30,.75),0 0 13px rgba(255,140,20,.28);
+      letter-spacing:-.10em; text-align:center; line-height:1; z-index:3; pointer-events:none; transform:scaleY(0.74); white-space:nowrap; overflow:hidden;
+    }
+    .vhf-active  { left:13.8%; top:14.5%; width:30.1%; font-size:clamp(18px,3.15vw,30px); }
+    .vhf-standby { left:58.2%; top:14.5%; width:30.1%; font-size:clamp(18px,3.15vw,30px); }
+    .nav-active  { left:12.8%; top:62.8%; width:29.9%; font-size:clamp(18px,3.15vw,30px); }
+    .nav-standby { left:58.0%; top:62.8%; width:30.1%; font-size:clamp(18px,3.15vw,30px); }
+
+    .vhf-swap { left:47.9%; top:13.2%; width:6.3%; height:6%; }
+    .nav-swap { left:47.2%; top:61.3%; width:6.3%; height:6%; }
+
+    /* VHF right knob split into 4 zones */
+    .vhf-mhz-inc { left:75.6%; top:28.2%; width:7.75%; height:9.5%; }
+    .vhf-khz-inc { left:83.35%; top:28.2%; width:7.75%; height:9.5%; }
+    .vhf-mhz-dec { left:75.6%; top:37.7%; width:7.75%; height:9.5%; }
+    .vhf-khz-dec { left:83.35%; top:37.7%; width:7.75%; height:9.5%; }
+
+    /* NAV right knob split into 4 zones */
+    .nav-mhz-inc { left:74.6%; top:76.0%; width:8.75%; height:9.5%; }
+    .nav-khz-inc { left:83.35%; top:76.0%; width:8.75%; height:9.5%; }
+    .nav-mhz-dec { left:74.6%; top:85.5%; width:8.75%; height:9.5%; }
+    .nav-khz-dec { left:83.35%; top:85.5%; width:8.75%; height:9.5%; }
+
+    /* Subtle always-visible click zones */
+    .radio-hotspot::after {
+      content:""; position:absolute; inset:0; border-radius:8px; background:rgba(0,180,255,.08); outline:1px solid rgba(0,180,255,.18);
+      opacity:1; pointer-events:none; transition:background .15s ease, outline .15s ease;
+    }
+    .radio-hotspot:active::after { background:rgba(0,180,255,.18); outline:1px solid rgba(0,220,255,.42); }
+    .vhf-mhz-inc::before,.vhf-khz-inc::before,.vhf-mhz-dec::before,.vhf-khz-dec::before,.nav-mhz-inc::before,.nav-khz-inc::before,.nav-mhz-dec::before,.nav-khz-dec::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background:linear-gradient(to right,transparent 48%,rgba(0,220,255,.22) 49%,rgba(0,220,255,.22) 51%,transparent 52%),linear-gradient(to bottom,transparent 48%,rgba(0,220,255,.22) 49%,rgba(0,220,255,.22) 51%,transparent 52%);
+      opacity:.35;
+    }
+    /* Subtle always-visible masks for FIRE TEST switch zones */
+    .fire-test-left,
+    .fire-test-right {
+      position:absolute;
+      top:77%;
+      width:3.5%;
+      height:18%;
+      border-radius:50%;
+      z-index:30;
+      transition: transform .08s ease, filter .08s ease;
+      transform-origin:50% 50%;
+    }
+	
+	
+	
+	/* warning PANEL: */
+    .warning-photo-cap-panel {
+      position:relative; width:100%; aspect-ratio:765 / 211; min-height:150px;
+      background-image:url("assets/caution-allloff-cap-pmdg.png"); background-size:cover; background-position:center;
+      border-radius:8px; border:3px solid #050505; box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65); overflow:hidden;
+    }
+	
+	.warning-photo-fo-panel {
+      position:relative; width:100%; aspect-ratio:765 / 211; min-height:150px;
+      background-image:url("assets/caution-allloff-pmdg.png"); background-size:cover; background-position:center;
+      border-radius:8px; border:3px solid #050505; box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65); overflow:hidden;
+    }
+
+    /* Warning annunciator overlays */
+    .warn-annun {
+      position:absolute;
+      pointer-events:none;
+      z-index:4;
+      opacity:0;
+      transition:opacity .12s ease;
+    }
+    .warn-annun.active {
+      opacity:1;
+      filter:drop-shadow(0 0 6px rgba(255,180,0,.7));
+    }
+	
+	/* Captain caution annunciator grid (right of MASTER CAUTION) */
+    /* Layout: 3 rows x 2 cols — FLT CONT/ELEC, IRS/APU, FUEL/OVHT-DET */
+    .warn-flct { left:55%; top:5%;  width:18%; height:26%; }
+    .warn-elec { left:79%; top:5%;  width:18%; height:26%; }
+    .warn-irs  { left:55%; top:36%; width:18%; height:26%; }
+    .warn-apu  { left:79%; top:36%; width:18%; height:26%; }
+    .warn-fuel { left:55%; top:67%; width:18%; height:26%; }
+    .warn-ovht { left:79%; top:67%; width:18%; height:26%; }
+
+    /* Caution text positions (right side 6-panel grid) */
+    .warn-anti-ice { left:1%; top:5%; width:18%; height:26%; }
+    .warn-eng      { left:27%; top:5%; width:18%; height:26%; }
+    .warn-hyd      { left:1%; top:36%; width:18%; height:26%; }
+    .warn-overhead { left:27%; top:36%; width:18%; height:26%; }
+    .warn-doors    { left:1%; top:67%; width:18%; height:26%; }
+    .warn-air-cond { left:27%; top:67%; width:18%; height:26%; }
+
+    /* Master Caution and Fire Warn buttons */
+    .warn-master-caution { left:26%; top:9%; width:17.2%; height:63.7%; }
+    .warn-fire-warn      { left:2%; top:9.4%; width:17.2%; height:64%; }
+	
+	.warn-master-caution-fo { left:55%; top:9%; width:17.2%; height:63.7%; }
+    .warn-fire-warn-FO      { left:81%; top:9.4%; width:17.4%; height:64%; }
+
+    .warn-master-caution.active,
+    .warn-master-caution-fo.active {
+      filter:drop-shadow(0 0 10px rgba(255,160,0,.9));
+    }
+    .warn-fire-warn.active,
+    .warn-fire-warn-FO.active {
+      filter:drop-shadow(0 0 10px rgba(255,0,0,.9));
+    }
+
+    /* Warning annunciator base for FO panel */
+    .warn-annun-fo {
+      position:absolute;
+      pointer-events:none;
+      z-index:4;
+      opacity:0;
+      transition:opacity .12s ease;
+    }
+    .warn-annun-fo.active {
+      opacity:1;
+      filter:drop-shadow(0 0 6px rgba(255,180,0,.7));
+    }
+
+    /* Clickable areas for Master Caution and Fire Warn */
+    .warn-btn-master-caution { left:25%; top:6.5%; width:19%; height:72%; filter: brightness(.5);}
+    .warn-btn-fire-warn      { left:1%; top:6.5%; width:20%; height:72%; filter: brightness(.5);}
+    .warn-btn-master-fo-caution { left:54%; top:6.5%; width:20%; height:72%; filter: brightness(.5);}
+    .warn-btn-fire-fo-warn      { left:80%; top:6.5%; width:20%; height:72%; filter: brightness(.5);}
+
+
+	.recall-btn { left:53%; top:2%; width:45%; height:90%; filter: brightness(.5);}
+	.recall-fo-btn { left:2%; top:2%; width:45%; height:90%; filter: brightness(.5);}
+	
+    
+    .recall-btn:active,
+    .recall-btn.pressed {
+      filter: brightness(.8);
+    }
+	
+	.recall-fo-btn:active,
+    .recall-fo-btn.pressed {
+      filter: brightness(.8);
+    }
+
+    .fire-test-left { left:7.2%; }
+    .fire-test-right { left:13.6%; }
+
+    .fire-test-left:active,
+    .fire-test-right:active,
+    .fire-test-left.pressed,
+    .fire-test-right.pressed {
+      filter: brightness(.8);
+    }
+
+    .fire-test-lever {
+      position:absolute;
+      left:9.9%;
+      top:83.0%;
+      width:3.1%;
+      height:4.8%;
+      z-index:29;
+      pointer-events:none;
+      border-radius:18px;
+      background:linear-gradient(135deg,#d8d8d8,#727272 48%,#232323);
+      box-shadow:
+        0 2px 4px rgba(0,0,0,.75),
+        inset 0 1px 2px rgba(255,255,255,.55),
+        inset 0 -2px 3px rgba(0,0,0,.65);
+      transform-origin:50% 50%;
+      transform:rotate(0deg) translateY(0);
+      transition:transform .09s ease, filter .09s ease;
+    }
+
+    .fire-test-lever.to-left {
+      transform:rotate(-28deg) translateX(-8%) translateY(8%);
+      filter:brightness(.82);
+    }
+
+    .fire-test-lever.to-right {
+      transform:rotate(28deg) translateX(8%) translateY(8%);
+      filter:brightness(.82);
+    }
+
+    .fire-test-left::after,
+    .fire-test-right::after,
+    .fire-test::after {
+      content:"";
+      position:absolute;
+      inset:0;
+      border-radius:50%;
+      background:rgba(0,180,255,.10);
+      outline:1px solid rgba(0,180,255,.24);
+      pointer-events:none;
+    }
+
+    .fire-test-left:active::after,
+    .fire-test-right:active::after,
+    .fire-test:active::after {
+      background:rgba(0,220,255,.22);
+      outline:1px solid rgba(0,220,255,.55);
+      box-shadow:0 0 10px rgba(0,220,255,.35);
+    }
+	
+	.ext-led {
+	  position:absolute;
+	  width:3.4%;
+	  height:12%;
+	  border-radius:50%;
+	  z-index:6;
+	  pointer-events:none;
+	  opacity:.25;
+	  background:radial-gradient(circle, rgba(0,255,180,.35), rgba(0,80,60,.25) 65%, transparent 75%);
+	  box-shadow:inset 0 0 8px rgba(0,255,180,.25);
+	}
+
+	.ext-led.active {
+	  opacity:1;
+	  background:radial-gradient(circle, rgba(120,255,210,1), rgba(0,180,120,.85) 55%, rgba(0,50,40,.5) 80%);
+	  box-shadow:0 0 12px rgba(0,255,180,.85), inset 0 0 10px rgba(255,255,255,.35);
+	}
+
+	.ext-led-l   { left:84.5%; top:67.5%; }
+	.ext-led-r   { left:89.3%; top:67.9%; }
+	.ext-led-apu { left:87.0%; top:82.5%; }
+
+	.ext-test-left,
+	.ext-test-right {
+	  position:absolute;
+	  left:90.0%;
+	  top:35.0%;
+	  width:3.0%;
+	  height:28%;
+	  z-index:30;
+	  border-radius:10px;
+	}
+
+	.ext-test-right {
+	  left:85.5%;
+	  width:3.0%;
+	}
+
+.ext-test-left::after,
+.ext-test-right::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:10px;
+  background:rgba(0,180,255,.10);
+  outline:1px solid rgba(0,180,255,.25);
+  pointer-events:none;
+}
+
+/* OVHT DET switch images */
+.ovht-switch {
+  position:absolute;
+  z-index:8;
+  pointer-events:none;
+  top:16%;
+  height:15%;
+  width:auto;
+  object-fit:contain;
+  transition:left .15s ease;
+}
+.ovht-switch-1 { left:10.7%; transform:translateX(-20%); }
+.ovht-switch-2 { left:63.2%; transform:translateX(-20%); }
+.ovht-switch-1.pos-a { left:9.2%; }
+.ovht-switch-1.pos-normal { left:10.7%; }
+.ovht-switch-1.pos-b { left:13.1%; }
+.ovht-switch-2.pos-a { left:61.4%; }
+.ovht-switch-2.pos-normal { left:63.2%; }
+.ovht-switch-2.pos-b { left:65.2%; }
+
+/* OVHT DET switch click zones */
+.ovht1-a,
+.ovht1-normal,
+.ovht1-b,
+.ovht2-a,
+.ovht2-normal,
+.ovht2-b {
+  position:absolute;
+  top:10%;
+  width:3.2%;
+  height:27%;
+  z-index:30;
+  border-radius:12px;
+}
+
+.ovht1-a { left:7.1%; }
+.ovht1-normal { left:10.3%; }
+.ovht1-b { left:13.5%; }
+
+.ovht2-a { left:59.8%; }
+.ovht2-normal { left:63.0%; }
+.ovht2-b { left:66.2%; }
+
+.ovht1-a::after,
+.ovht1-normal::after,
+.ovht1-b::after,
+.ovht2-a::after,
+.ovht2-normal::after,
+.ovht2-b::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:12px;
+  background:rgba(0,180,255,.10);
+  outline:1px solid rgba(0,180,255,.24);
+  pointer-events:none;
+}
+
+.ovht1-a:active::after,
+.ovht1-normal:active::after,
+.ovht1-b:active::after,
+.ovht2-a:active::after,
+.ovht2-normal:active::after,
+.ovht2-b:active::after {
+  background:rgba(0,220,255,.22);
+  outline:1px solid rgba(0,220,255,.55);
+  box-shadow:0 0 10px rgba(0,220,255,.35);
+}
+
+.eng1-handle::after,
+.eng1-disch-l::after,
+.eng1-disch-r::after,
+.apu-handle::after,
+.apu-disch-l::after,
+.apu-disch-r::after,
+.eng2-handle::after,
+.eng2-disch-l::after,
+.eng2-disch-r::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:10px;
+  background:rgba(0,180,255,.08);
+  outline:1px solid rgba(0,180,255,.18);
+  pointer-events:none;
+}
+
+.eng1-handle:active::after,
+.eng1-disch-l:active::after,
+.eng1-disch-r:active::after,
+.apu-handle:active::after,
+.apu-disch-l:active::after,
+.apu-disch-r:active::after,
+.eng2-handle:active::after,
+.eng2-disch-l:active::after,
+.eng2-disch-r:active::after {
+  background:rgba(0,220,255,.22);
+  outline:1px solid rgba(0,220,255,.55);
+  box-shadow:0 0 10px rgba(0,220,255,.35);
+}
+
+/* VHF 1 / VHF 2 source selector buttons and annunciators */
+.vhf-select-left-1,
+.vhf-select-right-1 {
+  left:25.4%;
+  top:29.5%;
+  width:10.5%;
+  height:6.5%;
+}
+
+.vhf-select-left-2,
+.vhf-select-right-2 {
+  left:39.0%;
+  top:29.5%;
+  width:10.5%;
+  height:6.5%;
+}
+
+.vhf-indicator {
+  position:absolute;
+  width:7.0%;
+  height:3%;
+  top:26.2%;
+  border-radius:30%;
+  opacity:.18;
+  pointer-events:none;
+  background:rgba(255,255,120,.35);
+  box-shadow:inset 0 0 4px rgba(255,255,120,.25);
+  z-index:4;
+}
+
+.vhf-indicator.active {
+  opacity:1;
+  background:rgba(255,245,90,.95);
+  box-shadow:
+    0 0 10px rgba(255,230,80,.75),
+    inset 0 0 5px rgba(255,255,255,.45);
+}
+
+.vhf-ind-left-1,
+.vhf-ind-right-1 {
+  left:27.2%;
+}
+
+.vhf-ind-left-2,
+.vhf-ind-right-2 {
+  left:40.5%;
+}
+
+
+.vhf-crosslight {
+  position:absolute;
+  left:48.8%;
+  top:3.8%;
+  width:4.2%;
+  height:4.8%;
+  border-radius:50%;
+  z-index:4;
+  pointer-events:none;
+  opacity:.15;
+  background:rgba(40,40,40,.9);
+  box-shadow:inset 0 0 8px rgba(0,0,0,.9);
+}
+
+.vhf-crosslight.active {
+  opacity:1;
+  background:radial-gradient(circle, rgba(255,245,120,1), rgba(240,210,40,.85) 55%, rgba(80,70,20,.5) 80%);
+  box-shadow:
+    0 0 12px rgba(255,230,80,.85),
+    inset 0 0 6px rgba(255,255,255,.45);
+}
+
+.vhf-off-left,
+.vhf-off-right {
+  left: 10.3%;
+  top: 27.0%;
+  width: 8.5%;
+  height: 5.2%;
+  z-index: 30;
+  border-radius: 50%;
+}
+
+.radio-photo-panel.vhf-panel-off .vhf-active,
+.radio-photo-panel.vhf-panel-off .vhf-standby {
+  opacity: 0;
+  text-shadow: none;
+}
+
+.radio-photo-panel.vhf-panel-off .vhf-indicator,
+.radio-photo-panel.vhf-panel-off .vhf-crosslight {
+  opacity: 0 !important;
+  box-shadow: none !important;
+}
+
+
+
+
+.pedestal-columns {
+  grid-column: 1 / -1;
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  column-gap:0;
+  row-gap:14px;
+  align-items:start;
+  margin-top:0px;
+}
+
+.side-stack,
+.center-stack {
+  display:flex;
+  flex-direction:column;
+  gap:0px;
+  min-width:0;
+}
+
+.acp-photo-panel {
+  position:relative;
+  width:100%;
+  aspect-ratio:730 / 622;
+  min-height:360px;
+  background-image:url("assets/ACP-pmdg.png");
+  background-size:cover;
+  background-position:center;
+  border-radius:8px;
+  border:3px solid #050505;
+  box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65);
+  overflow:hidden;
+}
+
+/* ACP MIC selector buttons (top row - VHF1 and VHF2) */
+.acp-mic-vhf1-l, .acp-mic-vhf1-r { left:6%; top:6%; width:10%; height:16%; }
+.acp-mic-vhf2-l, .acp-mic-vhf2-r { left:17%; top:6%; width:10%; height:16%; }
+
+/* ACP REC selector arrows (VHF1, VHF2 row) */
+.acp-rec-vhf1-l, .acp-rec-vhf1-r { left:9.3%; top:35.5%; width:7.5%; height:7.5%; border-radius: 80%;}
+.acp-rec-vhf2-l, .acp-rec-vhf2-r { left:20%; top:35.5%; width:7.5%; height:7.5%; border-radius: 80%;}
+
+/* ACP REC selector arrows (NAV1, NAV2 row) */
+.acp-rec-nav1-l, .acp-rec-nav1-r { left:17%; top:55.7%; width:7.5%; height:7.5%; border-radius: 80%;}
+.acp-rec-nav2-l, .acp-rec-nav2-r { left:29%; top:55.7%; width:7.5%; height:7.5%; border-radius: 80%;}
+
+/* ACP REC active indicator - amber glow */
+.radio-hotspot.rec-active::after {
+  border-radius: 100%;
+  background:rgba(255,200,60,.35) !important;
+  outline:1px solid rgba(255,200,60,.55) !important;
+  box-shadow:0 0 8px rgba(255,200,60,.4) !important;
+}
+
+
+.cargo-wx-photo-panel {
+  position:relative;
+  width:100%;
+  aspect-ratio:730 / 672;
+  min-height:360px;
+  background-image:url("assets/cargo-fire-Wx-pmdg.png");
+  background-size:cover;
+  background-position:center;
+  border-radius:8px;
+  border:3px solid #050505;
+  box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65);
+  overflow:hidden;
+}
+
+/* WXR LEFT row (top buttons) */
+.wxr-l-tfr  { left:19.4%; top:55.5%; width:7%; height:6%; }
+.wxr-l-wx   { left:33%; top:55.5%; width:7%; height:6%; }
+.wxr-l-wxt  { left:46.5%; top:55.5%; width:7%; height:6%; }
+.wxr-l-map  { left:60%; top:55.5%; width:7%; height:6%; }
+
+/* WXR CENTER */
+.wxr-auto   { left:33%; top:71.6%; width:7%; height:5.1%; }
+.wxr-test   { left:60%; top:71.6%; width:7%; height:5.1%; }
+
+/* WXR RIGHT row (bottom buttons) */
+.wxr-r-tfr  { left:19.1%; top:86.6%; width:7%; height:5.5%; }
+.wxr-r-wx   { left:33%; top:86.6%; width:7%; height:5.5%; }
+.wxr-r-wxt  { left:46.5%; top:86.6%; width:7%; height:5.5%; }
+.wxr-r-map  { left:60%; top:86.6%; width:7%; height:5.5%; }
+
+/* WXR TILT controls */
+.wxr-tilt-l-up   { left:16%; top:65%; width:6%; height:8%; }
+.wxr-tilt-l-down { left:16%; top:74%; width:6%; height:8%; }
+.wxr-tilt-r-up   { left:79%; top:65%; width:6%; height:8%; }
+.wxr-tilt-r-down { left:79%; top:74%; width:6%; height:8%; }
+
+/* Cargo fire annunciator overlays */
+.cargo-annun {
+  position:absolute;
+  pointer-events:none;
+  z-index:4;
+  opacity:0;
+  transition:opacity .12s ease;
+}
+.cargo-annun.active {
+  opacity:1;
+}
+.cargo-fwd-fire  { left:29.8%; top:36%; width:14%; height:6%; filter:drop-shadow(0 0 8px rgba(255,0,0,.8)); }
+.cargo-aft-fire  { left:49.5%; top:35.5%; width:15%; height:7%; filter:drop-shadow(0 0 8px rgba(255,0,0,.8)); }
+.cargo-armed-fwd { left:30.8%; top:29%; width:13%; height:5%;  filter:drop-shadow(0 0 4px rgba(200,180,120,.6)); }
+.cargo-armed-aft { left:50.5%; top:29%; width:13%; height:5%;  filter:drop-shadow(0 0 4px rgba(200,180,120,.6)); }
+.cargo-det-fault { left:71.6%; top:8.5%;  width:15.5%; height:4%;  filter:drop-shadow(0 0 6px rgba(255,180,0,.7)); }
+.cargo-disch     { left:72.2%; top:38%; width:16%; height:6%; filter:drop-shadow(0 0 6px rgba(255,180,0,.7)); }
+
+/* Cargo EXT test lights (green) */
+.cargo-ext {
+  position:absolute;
+  pointer-events:none;
+  z-index:4;
+  width:5.5%;
+  height:6%;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(0,220,100,.0) 30%, transparent 70%);
+  box-shadow:none;
+  transition:all .15s ease;
+}
+.cargo-ext.active {
+  background:radial-gradient(circle, rgba(0,220,100,.85) 20%, rgba(0,180,80,.4) 50%, transparent 70%);
+  box-shadow:0 0 0px rgba(0,220,100,.7), 0 0 24px rgba(0,220,100,.3);
+}
+.cargo-ext-fwd { left:11.7%; top:13.5%; }
+.cargo-ext-aft { left:20.7%;   top:13.5%; }
+
+/* Cargo fire buttons */
+.cargo-btn-arm-fwd { left:30%; top:28%; width:15%; height:16%; }
+.cargo-btn-arm-aft { left:49.5%; top:28%; width:15%; height:16%; }
+.cargo-btn-disch   { left:71.5%; top:28%; width:17%; height:18%; }
+
+/* Cargo DET SELECT knobs (3 click zones each: A, NORM, B) */
+.cargo-det-fwd-a,
+.cargo-det-fwd-norm,
+.cargo-det-fwd-b,
+.cargo-det-aft-a,
+.cargo-det-aft-norm,
+.cargo-det-aft-b {
+  position:absolute;
+  top:7.5%;
+  width:4%;
+  height:14%;
+  z-index:30;
+  border-radius:12px;
+}
+.cargo-det-fwd-a    { left:30%; }
+.cargo-det-fwd-norm { left:35%; }
+.cargo-det-fwd-b    { left:40%; }
+.cargo-det-aft-a    { left:50%; }
+.cargo-det-aft-norm { left:55%; }
+.cargo-det-aft-b    { left:60%; }
+
+.cargo-det-fwd-a::after,
+.cargo-det-fwd-norm::after,
+.cargo-det-fwd-b::after,
+.cargo-det-aft-a::after,
+.cargo-det-aft-norm::after,
+.cargo-det-aft-b::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:12px;
+  background:rgba(0,180,255,.10);
+  outline:1px solid rgba(0,180,255,.25);
+  pointer-events:none;
+}
+
+/* Cargo TEST button */
+.cargo-btn-test { left:15.5%; top:35%; width:6%; height:6%; border-radius:50%;}
+
+/* Cargo DET SELECT knob images (rotate with PMDG state) */
+.cargo-knob {
+  position:absolute;
+  height: 9.5%;
+  width:8%;
+  aspect-ratio:1;
+  z-index:6;
+  pointer-events:none;
+  transform-origin:50% 50%;
+  transition:transform .15s ease;
+}
+.cargo-knob-fwd { left:33.1%; top:11%; }
+.cargo-knob-aft { left:53.1%; top:11%; }
+
+/* Cargo fire debug */
+.cargo-debug {
+  position:absolute; left:2%; bottom:49%; z-index:10;
+  font-family:monospace; font-size:8px; color:#888; white-space:pre;
+}
+
+.blank-photo-panel {
+  position:relative;
+  width:100%;
+  aspect-ratio:730 / 672;
+  min-height:360px;
+  background-image:url("assets/ADF-pmdg.png");
+  background-size:cover;
+  background-position:center;
+  border-radius:8px;
+  border:3px solid #050505;
+  box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65);
+  overflow:hidden;
+}
+
+.rudder-photo-panel {
+  position:relative;
+  width:100%;
+  aspect-ratio:720 / 462;
+  min-height:360px;
+  background-image:url("assets/rudder-pmdg.png");
+  background-size:cover;
+  background-position:center;
+  border-radius:8px;
+  border:3px solid #050505;
+  box-shadow:inset 0 0 30px #000,0 8px 18px rgba(0,0,0,.65);
+  overflow:hidden;
+}
+
+/* Rudder knob overlay - rotates with trim value */
+.rudder-knob-overlay {
+  position:absolute;
+  left:72.5%;
+  top:70.5%;
+  width:35.9%;
+  height:90%;
+  transform:translate(-50%,-50%) rotate(0deg);
+  transform-origin:50% 50%;
+  pointer-events:none;
+  z-index:4;
+  transition:transform .15s ease-out;
+}
+.rudder-knob-overlay img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  border-radius:50%;
+}
+
+.adf-active {
+  left:10.5%;
+  top:12.4%;
+  width:34%;
+  font-size:clamp(18px,3.15vw,30px);
+}
+
+.adf-standby {
+  left:56.5%;
+  top:12.4%;
+  width:34%;
+  font-size:clamp(18px,3.15vw,30px);
+}
+
+.adf-swap {
+  left:47.2%;
+  top:12.5%;
+  width:6.3%;
+  height:7%;
+}
+
+.adf-mhz-inc { left:77.0%; top:30.0%; width:9%; height:11%; }
+.adf-khz-inc { left:86.0%; top:30.0%; width:9%; height:11%; }
+.adf-mhz-dec { left:77.0%; top:41.0%; width:9%; height:11%; }
+.adf-khz-dec { left:86.0%; top:41.0%; width:9%; height:11%; }
+
+
+.xpdr-display {
+  left:59.5%;
+  top:70.5%;
+  width:27%;
+  font-size:clamp(20px,3.3vw,30px);
+  letter-spacing:.08em;
+}
+
+.xpdr-atc-label {
+  left:57%;
+  top:66%;
+  width:27%;
+  font-size:clamp(12px,1.6vw,16px);
+  letter-spacing:.12em;
+  opacity:.85;
+}
+
+.xpdr-key-1 { left:23.5%; top:59.0%; width:8%; height:10%; }
+.xpdr-key-2 { left:34.5%; top:59.0%; width:8%; height:10%; }
+.xpdr-key-3 { left:45.3%; top:59.0%; width:8%; height:10%; }
+
+.xpdr-key-4 { left:23.5%; top:72.0%; width:8%; height:10%; }
+.xpdr-key-5 { left:34.5%; top:72.0%; width:8%; height:10%; }
+.xpdr-key-6 { left:45.3%; top:72.0%; width:8%; height:10%; }
+
+.xpdr-key-7 { left:23.5%; top:85.0%; width:8%; height:10%; }
+.xpdr-key-0 { left:34.5%; top:85.0%; width:8%; height:10%; }
+.xpdr-clr   { left:45.3%; top:85.0%; width:8%; height:10%; }
+
+
+.xpdr-mode-up {
+  left:71%;
+  top:90.0%;
+  width:11%;
+  height:7%;
+}
+
+.xpdr-mode-down {
+  left:71%;
+  top:81%;
+  width:11%;
+  height:7%;
+}
+
+.xpdr-ident {
+  left:87%;
+  top:73%;
+  width:8%;
+  height:8%;
+  border-radius:50%;
+}
+
+.xpdr-alt-abv { left:87%; top:78%; width:5%; height:8%; }
+.xpdr-alt-n   { left:87%; top:86%; width:5%; height:8%; }
+.xpdr-alt-blw { left:87%; top:94%; width:5%; height:8%; }
+
+/* ATC 1/2 selector - small knob top left of XPDR section */
+.xpdr-atc-up   { left:10%; top:56%; width:9%; height:9%; }
+/*.xpdr-atc-down { left:15%; top:56%; width:5%; height:9%; }*/
+
+/* ALT SOURCE 1/2 selector - below ATC */
+.xpdr-altsrc-up   { left:10%; top:71%; width:9%; height:9%; }
+/*.xpdr-altsrc-down { left:15%; top:71%; width:5%; height:9%; } */
+
+/* XPNDR STBY/ON/AUTO selector - below ALT SOURCE */
+.xpdr-xpndr-mode-up   { left:15%; top:87%; width:5%; height:11%; }
+.xpdr-xpndr-mode-down { left:9%; top:87%; width:5%; height:11%; }
+
+/* ABV/N/BLW selector */
+.xpdr-abv-up   { left:57.5%; top:81%; width:6%; height:7%; }
+.xpdr-abv-down { left:57.5%; top:90%; width:6%; height:7%; }
+
+/* ABV/N/BLW switch overlay */
+.xpdr-abv-overlay {
+  position:absolute;
+  left:57%;
+  top:81%;
+  width:10%;
+  height:16%;
+  pointer-events:none;
+  z-index:4;
+}
+.xpdr-abv-overlay img {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  opacity:0;
+  transition:opacity .15s ease;
+}
+.xpdr-abv-overlay img.active {
+  opacity:1;
+}
+
+/* ATC panel knob overlays */
+.xpdr-knob-mode {
+  position:absolute;
+  left:76.5%;
+  top:90%;
+  width:16%;
+  aspect-ratio:1;
+  transform:translate(-50%,-50%) rotate(0deg);
+  transform-origin:50% 50%;
+  pointer-events:none;
+  z-index:4;
+  transition:transform .2s ease-out;
+}
+.xpdr-knob-mode img { width:92%; height:92%; object-fit:contain; }
+
+.xpdr-knob-atc,
+.xpdr-knob-altsrc,
+.xpdr-knob-stby {
+  position:absolute;
+  width:9%;
+  aspect-ratio:1;
+  transform:translate(-50%,-50%) rotate(0deg);
+  transform-origin:50% 50%;
+  pointer-events:none;
+  z-index:4;
+  transition:transform .2s ease-out;
+}
+.xpdr-knob-atc img,
+.xpdr-knob-altsrc img,
+.xpdr-knob-stby img { width:100%; height:100%; object-fit:contain; }
+
+.xpdr-knob-atc    { left:14.5%; top:62%; }
+.xpdr-knob-altsrc { left:14.5%; top:77%; }
+.xpdr-knob-stby   { left:14.2%; top:93%; }
+
+/* XPDR knob overlays - rotate with PMDG state */
+.xpdr-knob-overlay {
+  position:absolute;
+  pointer-events:none;
+  z-index:4;
+  transition:transform .2s ease-out;
+}
+.xpdr-knob-overlay img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+
+/* Large MODE knob (ALT OFF / XPDR / TA ONLY / TA/RA) */
+.xpdr-mode-knob {
+  left:75.5%;
+  top:82%;
+  width:16%;
+  height:20%;
+  transform-origin:50% 50%;
+}
+
+/* Small knobs - ATC 1/2, ALT SOURCE, STBY/ON/AUTO */
+.xpdr-atc-knob {
+  left:5.5%;
+  top:52%;
+  width:9%;
+  height:12%;
+  transform-origin:50% 50%;
+}
+.xpdr-altsrc-knob {
+  left:5.5%;
+  top:66%;
+  width:9%;
+  height:12%;
+  transform-origin:50% 50%;
+}
+.xpdr-stby-knob {
+  left:5.5%;
+  top:82%;
+  width:9%;
+  height:12%;
+  transform-origin:50% 50%;
+}
+/* ABV/N/BLW knob */
+.xpdr-abv-knob {
+  left:54%;
+  top:79%;
+  width:9%;
+  height:12%;
+  transform-origin:50% 50%;
+}
+
+/* RUDDER TRIM POINTER */
+.rudder-trim-pointer {
+  position:absolute;
+  left:49.3%;
+  top:18.5%;
+  width:4%;
+  height:6%;
+  z-index:5;
+  pointer-events:none;
+  background:linear-gradient(to top, #d8d8d8 0%, #b8b8b8 80%, transparent 56%);
+  clip-path:polygon(50% 0%, 0% 100%, 100% 100%);
+  filter:drop-shadow(0 0 3px rgba(255,255,255,.45));
+}
+
+
+/* RUDDER TRIM */
+.rudder-trim-left {
+  left:50%;
+  top:50%;
+  width:23%;
+  height:40%;
+}
+.rudder-trim-right {
+  left:74%;
+  top:50%;
+  width:20%;
+  height:40%;
+}
+
+/* RUDDER TRIM */
+.ail-trim-left {
+  left:13.6%;
+  top:50%;
+  width:10%;
+  height:40%;
+}
+.ail-trim-right {
+  left:23.6%;
+  top:50%;
+  width:10%;
+  height:40%;
+}
+
+/* ===== VISUAL FEEDBACK ANIMATIONS ===== */
+
+@keyframes knobPulse {
+  0% { background:rgba(0,180,255,.25); }
+  100% { background:rgba(0,180,255,0); }
+}
+.radio-hotspot.knob-active::after {
+  animation: knobPulse .25s ease-out;
+}
+
+@keyframes btnFlash {
+  0% { background:rgba(255,200,60,.4); box-shadow:0 0 12px rgba(255,200,60,.5); }
+  100% { background:rgba(0,180,255,.08); box-shadow:none; }
+}
+.radio-hotspot.btn-flash::after {
+  animation: btnFlash .3s ease-out;
+}
+
+@keyframes swapSpin {
+  0% { transform:rotate(0deg); }
+  100% { transform:rotate(180deg); }
+}
+.radio-hotspot.swap-spin::after {
+  animation: swapSpin .3s ease-out;
+}
+
+@keyframes digitPress {
+  0% { background:rgba(244,179,60,.45); outline:1px solid rgba(244,179,60,.6); }
+  100% { background:rgba(0,180,255,.08); outline:1px solid rgba(0,180,255,.18); }
+}
+.radio-hotspot.digit-press::after {
+  animation: digitPress .25s ease-out;
+}
+
+.rudder-trim-left.trimming,
+.rudder-trim-right.trimming {
+  background:rgba(0,180,255,.12) !important;
+}
+.rudder-trim-left.trimming::after,
+.rudder-trim-right.trimming::after {
+  background:rgba(0,180,255,.2) !important;
+  outline:1px solid rgba(0,220,255,.4) !important;
+}
+
+
+@media (max-width: 820px) {
+  body { overflow:auto; }
+  .pedestal {
+    height:auto;
+    grid-template-columns:1fr;
+    border-radius:0;
+  }
+  .pedestal-columns {
+    grid-template-columns:1fr;
+    column-gap:0;
+    margin-top:18px;
+  }
+  .status { grid-column:1; }
+  .fire-photo-panel { min-height:140px; }
+  .radio-photo-panel,
+  .cargo-wx-photo-panel,
+  .acp-photo-panel { min-height:330px; }
+  .vhf-active,.vhf-standby,.nav-active,.nav-standby {
+    font-size:clamp(25px,8vw,42px);
+  }
+}
+  </style>
+</head>
+<body>
+  <main class="pedestal">
+    <section class="fire-photo-panel" aria-label="PMDG 737 Fire Extinguisher Panel">
+	<div id="fire-debug" class="fire-debug">FIRE PANEL READY</div>
+      <img class="fire-overlay overlay-eng1" data-fire-overlay="eng1" src="assets/Fire1.png" alt="ENG1 Fire Handle">
+      <img class="fire-overlay overlay-apu" data-fire-overlay="apu" src="assets/FireApu.png" alt="APU Fire Handle">
+      <img class="fire-overlay overlay-eng2" data-fire-overlay="eng2" src="assets/Fire2.png" alt="ENG2 Fire Handle">
+      <div class="fire-glow glow-eng1" data-fire-glow="eng1"></div>
+      <div class="fire-glow glow-apu" data-fire-glow="apu"></div>
+      <div class="fire-glow glow-eng2" data-fire-glow="eng2"></div>
+
+      <!-- TEST switch visual lever -->
+      <div class="fire-test-lever" id="fire-test-lever"></div>
+
+      <!-- Annunciators (ON state overlays) -->
+      <img class="annun annun-eng1-overheat" data-annun="eng1Overheat" src="assets/eng1-overheat-on.png">
+      <img class="annun annun-wheel-well" data-annun="wheelWell" src="assets/wheel-well-on.png">
+      <img class="annun annun-fault" data-annun="fault" src="assets/fault-on.png">
+      <img class="annun annun-apu-det-inop" data-annun="apuDetInop" src="assets/apu-det-inop-on.png">
+      <img class="annun annun-apu-bottle" data-annun="apuBottle" src="assets/apu-bottle-discharge-on.png">
+      <img class="annun annun-eng2-overheat" data-annun="eng2Overheat" src="assets/eng2-overheat-on.png">
+      <img class="annun annun-l-bottle" data-annun="lBottle" src="assets/l-bottle-discharge-on.png">
+      <img class="annun annun-r-bottle" data-annun="rBottle" src="assets/r-bottle-discharge-on.png">
+
+      <!-- Annunciator masks for TEST mode -->
+      <div class="annun-overlay annun-fault" data-annun="fault"></div>
+      <div class="annun-overlay annun-apu-det-inop" data-annun="apu-det-inop"></div>
+
+      <button class="fire-hotspot eng1-handle" data-action="fire_pull" data-target="eng1"></button>
+      <button class="fire-hotspot eng1-disch-l" data-action="fire_disc_left" data-target="eng1"></button>
+      <button class="fire-hotspot eng1-disch-r" data-action="fire_disc_right" data-target="eng1"></button>
+      <button class="fire-hotspot apu-handle" data-action="fire_pull" data-target="apu"></button>
+      <button class="fire-hotspot apu-disch-l" data-action="fire_disc_left" data-target="apu"></button>
+      <button class="fire-hotspot apu-disch-r" data-action="fire_disc_right" data-target="apu"></button>
+      <button class="fire-hotspot eng2-handle" data-action="fire_pull" data-target="eng2"></button>
+      <button class="fire-hotspot eng2-disch-l" data-action="fire_disc_left" data-target="eng2"></button>
+      <button class="fire-hotspot eng2-disch-r" data-action="fire_disc_right" data-target="eng2"></button>
+
+            <!-- FIRE TEST BUTTONS -->
+      <button class="fire-hotspot fire-test-left" data-action="fire_test_fault"></button>
+      <button class="fire-hotspot fire-test-right" data-action="fire_test"></button>
+	  
+	  
+	  
+	  <div class="ext-led ext-led-l" data-ext-led="l"></div>
+	  <div class="ext-led ext-led-r" data-ext-led="r"></div>
+	  <div class="ext-led ext-led-apu" data-ext-led="apu"></div>
+	  
+	  <button class="fire-hotspot ext-test-left" data-action="ext_test_left"></button>
+	  <button class="fire-hotspot ext-test-right" data-action="ext_test_right"></button>
+	  
+	  <img class="ovht-switch ovht-switch-1" id="ovht-switch-1" src="assets/SWitchb.png" alt="OVHT DET 1">
+	  <img class="ovht-switch ovht-switch-2" id="ovht-switch-2" src="assets/SWitchb.png" alt="OVHT DET 2">
+
+	  <button class="fire-hotspot ovht1-a" data-action="ovht_det" data-target="eng1" data-pos="a"></button>
+	  <button class="fire-hotspot ovht1-normal" data-action="ovht_det" data-target="eng1" data-pos="normal"></button>
+	  <button class="fire-hotspot ovht1-b" data-action="ovht_det" data-target="eng1" data-pos="b"></button>
+
+	  <button class="fire-hotspot ovht2-a" data-action="ovht_det" data-target="eng2" data-pos="a"></button>
+	  <button class="fire-hotspot ovht2-normal" data-action="ovht_det" data-target="eng2" data-pos="normal"></button>
+	  <button class="fire-hotspot ovht2-b" data-action="ovht_det" data-target="eng2" data-pos="b"></button>
+
+    </section>
+
+    
+
+    <div class="pedestal-columns">
+      <div class="side-stack">
+    <section class="radio-photo-panel">
+      <div class="photo-display vhf-active" id="vhf1-active">118.000</div>
+      <div class="photo-display vhf-standby" id="vhf1-standby">121.500</div>
+      <div class="photo-display nav-active" id="vor1-active">110.00</div>
+      <div class="photo-display nav-standby" id="vor1-standby">113.90</div>
+	  <div class="vhf-crosslight" data-crosslight="left"></div>
+
+      <button class="radio-hotspot vhf-swap" data-action="swap" data-radio="vhf1"></button>
+      <button class="radio-hotspot nav-swap" data-action="swap" data-radio="vor1"></button>
+      <button class="radio-hotspot vhf-select-left-1" data-action="select_vhf_panel" data-panel="left" data-source="vhf1"></button>
+      <button class="radio-hotspot vhf-select-left-2" data-action="select_vhf_panel" data-panel="left" data-source="vhf2"></button>
+      <div class="vhf-indicator vhf-ind-left-1" data-panel="left" data-vhf-indicator="left-vhf1"></div>
+      <div class="vhf-indicator vhf-ind-left-2" data-panel="left" data-vhf-indicator="left-vhf2"></div>
+      <button class="radio-hotspot vhf-mhz-inc" data-action="vhfMhzInc" data-radio="vhf1"></button>
+      <button class="radio-hotspot vhf-khz-inc" data-action="vhfKhzInc" data-radio="vhf1"></button>
+      <button class="radio-hotspot vhf-mhz-dec" data-action="vhfMhzDec" data-radio="vhf1"></button>
+      <button class="radio-hotspot vhf-khz-dec" data-action="vhfKhzDec" data-radio="vhf1"></button>
+      <button class="radio-hotspot nav-mhz-inc" data-action="navMhzInc" data-radio="vor1"></button>
+      <button class="radio-hotspot nav-khz-inc" data-action="navKhzInc" data-radio="vor1"></button>
+      <button class="radio-hotspot nav-mhz-dec" data-action="navMhzDec" data-radio="vor1"></button>
+      <button class="radio-hotspot nav-khz-dec" data-action="navKhzDec" data-radio="vor1"></button>
+	  <button class="radio-hotspot vhf-off-left" data-action="vhf_panel_off" data-panel="left"></button>
+    </section>
+        <section class="acp-photo-panel" aria-label="PMDG 737 ACP Captain Panel">
+<!-- Captain MIC selectors -->
+<button class="radio-hotspot acp-mic-vhf1-l" data-action="acp_btn" data-acp="capt_mic_vhf1"></button>
+<button class="radio-hotspot acp-mic-vhf2-l" data-action="acp_btn" data-acp="capt_mic_vhf2"></button>
+<!-- Captain REC selectors (VHF1, VHF2, NAV1, NAV2) -->
+<button class="radio-hotspot acp-rec-vhf1-l" data-action="acp_btn" data-acp="capt_rec_vhf1"></button>
+<button class="radio-hotspot acp-rec-vhf2-l" data-action="acp_btn" data-acp="capt_rec_vhf2"></button>
+<button class="radio-hotspot acp-rec-nav1-l" data-action="acp_btn" data-acp="capt_rec_nav1"></button>
+<button class="radio-hotspot acp-rec-nav2-l" data-action="acp_btn" data-acp="capt_rec_nav2"></button>
+</section>
+
+<section class="warning-photo-cap-panel" arial-label="PMDG 737 Master warning Captain Panel">
+
+<!-- Caution annunciator image overlays -->
+<img class="warn-annun warn-flct" id="warn-flct" src="assets/Fltctl-cap-pmdg.png" alt="FLIGHT-CONTROL">
+<img class="warn-annun warn-irs" id="warn-irs" src="assets/IRS-cap-pmdg.png" alt="IRS">
+<img class="warn-annun warn-fuel" id="warn-fuel" src="assets/Fuel-cap-pmdg.png" alt="FUEL">
+<img class="warn-annun warn-elec" id="warn-elec" src="assets/ELEC-cap-pmdg.png" alt="ELEC">
+<img class="warn-annun warn-apu" id="warn-apu" src="assets/APU-cap-pmdg.png" alt="APU">
+<img class="warn-annun warn-ovht" id="warn-ovht" src="assets/OVHT-cap-pmdg.png" alt="OVERHEAT">
+<img class="warn-annun warn-master-caution" id="warn-masterCaution" src="assets/master-caution-pmdg.png" alt="MASTER CAUTION">
+<img class="warn-annun warn-fire-warn" id="warn-fireWarn" src="assets/master-arning-pmdg.png" alt="FIRE WARN">
+
+<!-- Clickable buttons for MASTER CAUTION and FIRE WARN -->
+<button class="radio-hotspot warn-btn-master-caution" data-action="warn_btn" data-warn="master_caution"></button>
+<button class="radio-hotspot warn-btn-fire-warn" data-action="warn_btn" data-warn="fire_warn"></button>
+<button class="radio-hotspot recall-btn" id="recall-btn-capt"></button>
+
+</section>
+
+
+
+      </div>
+
+      <div class="center-stack">
+        <section class="cargo-wx-photo-panel" aria-label="PMDG 737 Cargo Fire and Weather Radar Panel">
+
+<!-- Cargo Fire annunciators -->
+<img class="cargo-annun cargo-fwd-fire"  id="cargo-fwd"      src="assets/cargo-fwd-fire-pmdg.png"  alt="FWD">
+<img class="cargo-annun cargo-aft-fire"  id="cargo-aft"      src="assets/cargo-aft-fire-pmdg.png"  alt="AFT">
+<img class="cargo-annun cargo-armed-fwd" id="cargo-armedFwd" src="assets/cargo-armed-pmdg.png"     alt="ARMED FWD">
+<img class="cargo-annun cargo-armed-aft" id="cargo-armedAft" src="assets/cargo-armed-pmdg.png"     alt="ARMED AFT">
+<img class="cargo-annun cargo-det-fault" id="cargo-detFault" src="assets/detectorfault-pmdg.png"   alt="DETECTOR FAULT">
+<img class="cargo-annun cargo-disch"     id="cargo-disch"    src="assets/cargo-disch-pmdg.png"     alt="DISCH">
+
+<!-- Cargo EXT test lights (green) -->
+<div class="cargo-ext cargo-ext-fwd" id="cargo-extFwd"></div>
+<div class="cargo-ext cargo-ext-aft" id="cargo-extAft"></div>
+
+<!-- Cargo fire buttons -->
+<button class="radio-hotspot cargo-btn-arm-fwd" data-action="cargo_btn" data-cargo="arm_fwd"></button>
+<button class="radio-hotspot cargo-btn-arm-aft" data-action="cargo_btn" data-cargo="arm_aft"></button>
+<button class="radio-hotspot cargo-btn-disch"   data-action="cargo_btn" data-cargo="disch"></button>
+<button class="radio-hotspot cargo-btn-test" id="cargo-test-btn"></button>
+
+<!-- Cargo DET SELECT knob overlays (rotate with state) -->
+<img class="cargo-knob cargo-knob-fwd" id="cargo-knob-fwd" src="assets/Cargo-knob-small.PNG" alt="DET SEL FWD">
+<img class="cargo-knob cargo-knob-aft" id="cargo-knob-aft" src="assets/Cargo-knob-small.PNG" alt="DET SEL AFT">
+
+<!-- Cargo DET SELECT FWD knob (A / NORM / B) -->
+<button class="radio-hotspot cargo-det-fwd-a"    data-action="cargo_det" data-target="fwd" data-pos="a"></button>
+<button class="radio-hotspot cargo-det-fwd-norm"  data-action="cargo_det" data-target="fwd" data-pos="norm"></button>
+<button class="radio-hotspot cargo-det-fwd-b"     data-action="cargo_det" data-target="fwd" data-pos="b"></button>
+
+<!-- Cargo DET SELECT AFT knob (A / NORM / B) -->
+<button class="radio-hotspot cargo-det-aft-a"    data-action="cargo_det" data-target="aft" data-pos="a"></button>
+<button class="radio-hotspot cargo-det-aft-norm"  data-action="cargo_det" data-target="aft" data-pos="norm"></button>
+<button class="radio-hotspot cargo-det-aft-b"     data-action="cargo_det" data-target="aft" data-pos="b"></button>
+
+<div class="cargo-debug" id="cargo-debug"></div>
+
+<!-- WXR LEFT row (top) -->
+<button class="radio-hotspot wxr-l-tfr"  data-action="wxr_btn" data-wxr="l_tfr"></button>
+<button class="radio-hotspot wxr-l-wx"   data-action="wxr_btn" data-wxr="l_wx"></button>
+<button class="radio-hotspot wxr-l-wxt"  data-action="wxr_btn" data-wxr="l_wxt"></button>
+<button class="radio-hotspot wxr-l-map"  data-action="wxr_btn" data-wxr="l_map"></button>
+
+<!-- WXR CENTER -->
+<button class="radio-hotspot wxr-auto"   data-action="wxr_btn" data-wxr="auto"></button>
+<button class="radio-hotspot wxr-test"   data-action="wxr_btn" data-wxr="test"></button>
+
+<!-- WXR RIGHT row (bottom) -->
+<button class="radio-hotspot wxr-r-tfr"  data-action="wxr_btn" data-wxr="r_tfr"></button>
+<button class="radio-hotspot wxr-r-wx"   data-action="wxr_btn" data-wxr="r_wx"></button>
+<button class="radio-hotspot wxr-r-wxt"  data-action="wxr_btn" data-wxr="r_wxt"></button>
+<button class="radio-hotspot wxr-r-map"  data-action="wxr_btn" data-wxr="r_map"></button>
+
+<!-- WXR TILT L -->
+<button class="radio-hotspot wxr-tilt-l-up"   data-action="wxr_btn" data-wxr="tilt_l_up"></button>
+<button class="radio-hotspot wxr-tilt-l-down" data-action="wxr_btn" data-wxr="tilt_l_down"></button>
+
+<!-- WXR TILT R -->
+<button class="radio-hotspot wxr-tilt-r-up"   data-action="wxr_btn" data-wxr="tilt_r_up"></button>
+<button class="radio-hotspot wxr-tilt-r-down" data-action="wxr_btn" data-wxr="tilt_r_down"></button>
+
+</section>
+<section class="blank-photo-panel"aria-label="PMDG 737 Blank Center Panel">
+
+<div class="photo-display adf-active" id="adf-active">1000.0</div>
+<div class="photo-display adf-standby" id="adf-standby">1200.0</div>
+
+<button class="radio-hotspot adf-swap" data-action="swap" data-radio="adf"></button>
+
+<button class="radio-hotspot adf-mhz-inc" data-action="adfMhzInc" data-radio="adf"></button>
+<button class="radio-hotspot adf-khz-inc" data-action="adfKhzInc" data-radio="adf"></button>
+<button class="radio-hotspot adf-mhz-dec" data-action="adfMhzDec" data-radio="adf"></button>
+<button class="radio-hotspot adf-khz-dec" data-action="adfKhzDec" data-radio="adf"></button>
+
+<div class="photo-display xpdr-atc-label" id="xpdr-atc-label">ATC 1</div>
+<div class="photo-display xpdr-display" id="xpdr-active">2000</div>
+
+<button class="radio-hotspot xpdr-key xpdr-key-1" data-action="xpdr_digit" data-digit="1"></button>
+<button class="radio-hotspot xpdr-key xpdr-key-2" data-action="xpdr_digit" data-digit="2"></button>
+<button class="radio-hotspot xpdr-key xpdr-key-3" data-action="xpdr_digit" data-digit="3"></button>
+<button class="radio-hotspot xpdr-key xpdr-key-4" data-action="xpdr_digit" data-digit="4"></button>
+<button class="radio-hotspot xpdr-key xpdr-key-5" data-action="xpdr_digit" data-digit="5"></button>
+<button class="radio-hotspot xpdr-key xpdr-key-6" data-action="xpdr_digit" data-digit="6"></button>
+<button class="radio-hotspot xpdr-key xpdr-key-7" data-action="xpdr_digit" data-digit="7"></button>
+<button class="radio-hotspot xpdr-key xpdr-key-0" data-action="xpdr_digit" data-digit="0"></button>
+<button class="radio-hotspot xpdr-key xpdr-clr" data-action="xpdr_clear"></button>
+
+<button class="radio-hotspot xpdr-mode-up" data-action="xpdr_mode_up"></button>
+<button class="radio-hotspot xpdr-mode-down" data-action="xpdr_mode_down"></button>
+
+<button class="radio-hotspot xpdr-ident" data-action="xpdr_ident"></button>
+
+<!-- ATC 1/2 selector -->
+<button class="radio-hotspot xpdr-atc-up"   data-action="xpdr_atc" data-direction="up"></button>
+<button class="radio-hotspot xpdr-atc-down" data-action="xpdr_atc" data-direction="down"></button>
+
+<!-- ALT SOURCE 1/2 selector -->
+<button class="radio-hotspot xpdr-altsrc-up"   data-action="xpdr_altsrc" data-direction="up"></button>
+<button class="radio-hotspot xpdr-altsrc-down" data-action="xpdr_altsrc" data-direction="down"></button>
+
+<!-- XPNDR STBY/ON/AUTO selector -->
+<button class="radio-hotspot xpdr-xpndr-mode-up"   data-action="xpdr_xpndr_mode" data-direction="up"></button>
+<button class="radio-hotspot xpdr-xpndr-mode-down" data-action="xpdr_xpndr_mode" data-direction="down"></button>
+
+<!-- ABV/N/BLW selector -->
+<button class="radio-hotspot xpdr-abv-up"   data-action="xpdr_abv_blw" data-direction="up"></button>
+<button class="radio-hotspot xpdr-abv-down" data-action="xpdr_abv_blw" data-direction="down"></button>
+
+<!-- ABV/N/BLW switch overlay -->
+<div class="xpdr-abv-overlay" id="xpdr-abv-overlay">
+  <img src="assets/tcas_ABV.png" data-abv-pos="abv" alt="ABV">
+  <img src="assets/tcas_N.png" data-abv-pos="n" class="active" alt="N">
+  <img src="assets/tcas_BL.png" data-abv-pos="blw" alt="BLW">
+</div>
+
+<!-- ATC Panel Knob Overlays -->
+<div class="xpdr-knob-mode" id="xpdr-knob-mode"><img src="assets/XPDR-knob.png" alt="MODE"></div>
+<div class="xpdr-knob-atc" id="xpdr-knob-atc"><img src="assets/XPDR-knob-small.png" alt="ATC"></div>
+<div class="xpdr-knob-altsrc" id="xpdr-knob-altsrc"><img src="assets/XPDR-knob-small.png" alt="ALT SRC"></div>
+<div class="xpdr-knob-stby" id="xpdr-knob-stby"><img src="assets/XPDR-knob-small.png" alt="STBY"></div>
+
+
+
+    </section>
+	
+	<section class="rudder-photo-panel" aria-label="PMDG 737 Rudder Panel">
+  
+  <div class="rudder-trim-pointer" id="rudder-trim-pointer"></div>
+  <div class="rudder-knob-overlay" id="rudder-knob-overlay">
+    <img src="assets/rudder-knob.png" alt="Rudder Trim Knob">
+  </div>
+  <!-- AIL TRIM selector -->
+  <button class="radio-hotspot ail-trim-left" data-action="ail_trim_left"></button>
+  <button class="radio-hotspot ail-trim-right" data-action="ail_trim_right"></button>
+  
+  <!-- RUDDER TRIM selector -->
+  <button class="radio-hotspot rudder-trim-left" data-action="rudder_trim_left"></button>
+  <button class="radio-hotspot rudder-trim-right" data-action="rudder_trim_right"></button>
+
+
+      </div>
+	</section>
+      <div class="side-stack">
+    <section class="radio-photo-panel">
+      <div class="photo-display vhf-active" id="vhf2-active">118.000</div>
+      <div class="photo-display vhf-standby" id="vhf2-standby">122.800</div>
+      <div class="photo-display nav-active" id="vor2-active">110.00</div>
+      <div class="photo-display nav-standby" id="vor2-standby">114.30</div>
+	  <div class="vhf-crosslight" data-crosslight="right"></div>
+
+      <button class="radio-hotspot vhf-swap" data-action="swap" data-radio="vhf2"></button>
+      <button class="radio-hotspot nav-swap" data-action="swap" data-radio="vor2"></button>
+      <button class="radio-hotspot vhf-select-right-1" data-action="select_vhf_panel" data-panel="right" data-source="vhf1"></button>
+      <button class="radio-hotspot vhf-select-right-2" data-action="select_vhf_panel" data-panel="right" data-source="vhf2"></button>
+      <div class="vhf-indicator vhf-ind-right-1" data-panel="right" data-vhf-indicator="right-vhf1"></div>
+      <div class="vhf-indicator vhf-ind-right-2" data-panel="right" data-vhf-indicator="right-vhf2"></div>
+      <button class="radio-hotspot vhf-mhz-inc" data-action="vhfMhzInc" data-radio="vhf2"></button>
+      <button class="radio-hotspot vhf-khz-inc" data-action="vhfKhzInc" data-radio="vhf2"></button>
+      <button class="radio-hotspot vhf-mhz-dec" data-action="vhfMhzDec" data-radio="vhf2"></button>
+      <button class="radio-hotspot vhf-khz-dec" data-action="vhfKhzDec" data-radio="vhf2"></button>
+      <button class="radio-hotspot nav-mhz-inc" data-action="navMhzInc" data-radio="vor2"></button>
+      <button class="radio-hotspot nav-khz-inc" data-action="navKhzInc" data-radio="vor2"></button>
+      <button class="radio-hotspot nav-mhz-dec" data-action="navMhzDec" data-radio="vor2"></button>
+      <button class="radio-hotspot nav-khz-dec" data-action="navKhzDec" data-radio="vor2"></button>
+	  <button class="radio-hotspot vhf-off-right" data-action="vhf_panel_off" data-panel="right"></button>
+    </section>
+        <section class="acp-photo-panel" aria-label="PMDG 737 ACP First Officer Panel">
+<!-- FO MIC selectors -->
+<button class="radio-hotspot acp-mic-vhf1-r" data-action="acp_btn" data-acp="fo_mic_vhf1"></button>
+<button class="radio-hotspot acp-mic-vhf2-r" data-action="acp_btn" data-acp="fo_mic_vhf2"></button>
+<!-- FO REC selectors (VHF1, VHF2, NAV1, NAV2) -->
+<button class="radio-hotspot acp-rec-vhf1-r" data-action="acp_btn" data-acp="fo_rec_vhf1"></button>
+<button class="radio-hotspot acp-rec-vhf2-r" data-action="acp_btn" data-acp="fo_rec_vhf2"></button>
+<button class="radio-hotspot acp-rec-nav1-r" data-action="acp_btn" data-acp="fo_rec_nav1"></button>
+<button class="radio-hotspot acp-rec-nav2-r" data-action="acp_btn" data-acp="fo_rec_nav2"></button>
+</section>
+<section class="warning-photo-fo-panel" arial-label="PMDG 737 Master warning First Officer Panel">
+
+<!-- Caution annunciator image overlays -->
+<img class="warn-annun-fo warn-anti-ice" id="warn-antiIce" src="assets/antiice-pmdg.png" alt="ANTI-ICE">
+<img class="warn-annun-fo warn-eng" id="warn-eng" src="assets/eng-pmdg.png" alt="ENG">
+<img class="warn-annun-fo warn-hyd" id="warn-hyd" src="assets/hyd-pmdg.png" alt="HYD">
+<img class="warn-annun-fo warn-overhead" id="warn-overhead" src="assets/overhead-pmdg.png" alt="OVERHEAD">
+<img class="warn-annun-fo warn-doors" id="warn-doors" src="assets/doors-pmdg.png" alt="DOORS">
+<img class="warn-annun-fo warn-air-cond" id="warn-airCond" src="assets/aircond-pmdg.png" alt="AIR COND">
+<img class="warn-annun-fo warn-master-caution-fo" id="warn-masterCaution-FO" src="assets/master-caution-pmdg.png" alt="MASTER CAUTION">
+<img class="warn-annun-fo warn-fire-warn-FO" id="warn-fireWarn-FO" src="assets/master-arning-pmdg.png" alt="FIRE WARN">
+
+<!-- Clickable buttons for MASTER CAUTION and FIRE WARN -->
+<button class="radio-hotspot warn-btn-master-fo-caution" data-action="warn_btn" data-warn="master_caution_fo"></button>
+<button class="radio-hotspot warn-btn-fire-fo-warn" data-action="warn_btn" data-warn="fire_warn_fo"></button>
+<button class="radio-hotspot recall-fo-btn" id="recall-btn-fo"></button>
+</section>
+      </div>
+    </div>
+<div class="status">
+      <span><div id="bridge-indicator" class="bridge-indicator" title="Configurar IP do bridge"></div><span id="dot" class="dot"></span><span id="connection">Desconectado do bridge</span></span>
+      <span>PMDG 737 PEDESTAL</span>
+    </div>
+
+    <!-- Bridge IP Config Modal -->
+    <div id="bridge-modal-overlay" class="bridge-modal-overlay">
+      <div class="bridge-modal">
+        <h3>⚙ Configuração do Bridge</h3>
+        <label for="bridge-ip-input">Endereço IP do Bridge (ex: 192.168.1.61)</label>
+        <input type="text" id="bridge-ip-input" placeholder="192.168.1.61" />
+        <div class="btn-row">
+          <button class="btn-cancel" id="bridge-cancel-btn">Cancelar</button>
+          <button class="btn-save" id="bridge-save-btn">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const DEFAULT_BRIDGE_IP = '192.168.1.61';
+    const BRIDGE_PORT = '7373';
+
+    function getBridgeIp() {
+      return localStorage.getItem('pmdg_bridge_ip') || DEFAULT_BRIDGE_IP;
+    }
+    function setBridgeIp(ip) {
+      localStorage.setItem('pmdg_bridge_ip', ip);
+    }
+    function buildBridgeUrl(ip) {
+      return `ws://${ip}:${BRIDGE_PORT}`;
+    }
+
+    let BRIDGE_URL = buildBridgeUrl(getBridgeIp());
+
+    // Bridge IP Modal logic
+    (function() {
+      const indicator = document.getElementById('bridge-indicator');
+      const overlay = document.getElementById('bridge-modal-overlay');
+      const input = document.getElementById('bridge-ip-input');
+      const saveBtn = document.getElementById('bridge-save-btn');
+      const cancelBtn = document.getElementById('bridge-cancel-btn');
+
+      indicator.addEventListener('click', () => {
+        input.value = getBridgeIp();
+        overlay.classList.add('open');
+        setTimeout(() => input.focus(), 100);
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('open');
+      });
+
+      cancelBtn.addEventListener('click', () => overlay.classList.remove('open'));
+
+      saveBtn.addEventListener('click', () => {
+        const ip = input.value.trim();
+        if (!ip) return;
+        setBridgeIp(ip);
+        BRIDGE_URL = buildBridgeUrl(ip);
+        overlay.classList.remove('open');
+        // Reconnect with new IP
+        if (ws) { ws.onclose = null; ws.close(); }
+        setConnection(false);
+        connect();
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') saveBtn.click();
+        if (e.key === 'Escape') overlay.classList.remove('open');
+      });
+    })();
+	
+	let xpdrInput = '';
+
+    const radios = [
+      { id:'vhf1', active:'118.000', standby:'121.500', step:0.025 },
+      { id:'vhf2', active:'118.000', standby:'122.800', step:0.025 },
+      { id:'vor1', active:'110.00', standby:'113.90', step:0.05 },
+      { id:'vor2', active:'110.00', standby:'114.30', step:0.05 },
+	  { id:'adf', active:'1000', standby:'1200', step:1 },
+	  { id:'xpdr', active:'2000', standby:'2000', step:1 },
+    ];
+    const state = Object.fromEntries(radios.map(r => [r.id, { ...r }]));
+    let ws;
+
+    const vhfPanelSource = {
+      left: 'vhf1',
+      right: 'vhf2'
+    };
+	
+	const vhfPanelOff = {
+  left: false,
+  right: false
+};
+
+    function setConnection(online) {
+      document.getElementById('dot').classList.toggle('online', online);
+      document.getElementById('bridge-indicator').classList.toggle('online', online);
+      document.getElementById('connection').textContent = online ? 'Conectado ao MSFS bridge' : 'Desconectado do bridge';
+    }
+    function renderRadio(id) {
+      const r = state[id];
+
+      if (id === 'vhf1' || id === 'vhf2') {
+        renderVhfPanels();
+        return;
+      }
+
+      const active = document.getElementById(`${id}-active`);
+      const standby = document.getElementById(`${id}-standby`);
+      if (active) active.textContent = r.active;
+      if (standby) standby.textContent = r.standby;
+    }
+
+    function panelFromRadioElementId(id) {
+      return id === 'vhf1' ? 'left' : 'right';
+    }
+
+    function selectedVhfForPanelId(id) {
+      return vhfPanelSource[panelFromRadioElementId(id)] || id;
+    }
+
+    function renderVhfPanels() {
+  const leftOff = vhfPanelOff.left;
+  const rightOff = vhfPanelOff.right;
+
+  const left = state[vhfPanelSource.left];
+  const right = state[vhfPanelSource.right];
+
+  document.getElementById('vhf1-active').textContent = leftOff ? '' : left.active;
+  document.getElementById('vhf1-standby').textContent = leftOff ? '' : left.standby;
+
+  document.getElementById('vhf2-active').textContent = rightOff ? '' : right.active;
+  document.getElementById('vhf2-standby').textContent = rightOff ? '' : right.standby;
+
+  document.querySelectorAll('[data-panel="left"][data-vhf-indicator]').forEach(el => {
+    el.classList.toggle(
+      'active',
+      !leftOff && el.dataset.vhfIndicator === `left-${vhfPanelSource.left}`
+    );
+  });
+
+  document.querySelectorAll('[data-panel="right"][data-vhf-indicator]').forEach(el => {
+    el.classList.toggle(
+      'active',
+      !rightOff && el.dataset.vhfIndicator === `right-${vhfPanelSource.right}`
+    );
+  });
+
+  const crossSelected =
+    !leftOff &&
+    !rightOff &&
+    (vhfPanelSource.left === 'vhf2' || vhfPanelSource.right === 'vhf1');
+
+  document.querySelectorAll('[data-crosslight]').forEach(el => {
+    el.classList.toggle('active', crossSelected);
+  });
+
+  document.querySelectorAll('.radio-photo-panel').forEach((panelEl, index) => {
+    panelEl.classList.toggle('vhf-panel-off', index === 0 ? leftOff : rightOff);
+  });
+}
+
+    function send(command) {
+      const fireDebug = document.getElementById('fire-debug');
+      if (fireDebug && command.type === 'pmdgFire') fireDebug.textContent = `${command.target.toUpperCase()} ${command.action.toUpperCase()} SENT`;
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(command));
+    }
+    function clampFrequency(id, value) {
+      if (id.startsWith('vhf')) return Math.min(136.975, Math.max(118.000, value));
+      if (id.startsWith('vor')) return Math.min(117.95, Math.max(108.00, value));
+	  if (id.startsWith('adf')) return Math.min(1799, Math.max(190, value));
+      return value;
+    }
+    function numericFormat(id, value) {
+      value = clampFrequency(id, value);
+      if (id.startsWith('vhf')) return value.toFixed(3);
+      if (id.startsWith('vor')) return value.toFixed(2);
+	  if (id.startsWith('adf')) return value.toFixed(0);
+      return String(value);
+    }
+    function changeStandby(id, delta) {
+  const r = state[id];
+
+  let current = Number(r.standby);
+
+  if (!Number.isFinite(current)) {
+    current = id.startsWith('adf') ? 400 : Number(r.active);
+  }
+
+  let value = current + delta;
+  r.standby = numericFormat(id, value);
+
+  renderRadio(id);
+
+  send({
+    type: 'setStandby',
+    radio: id,
+    value: r.standby
+  });
+}
+    function changeVhfStandby(id, part, direction) {
+      if (!id.startsWith('vhf')) return;
+      changeStandby(id, part === 'mhz' ? direction * 1.000 : direction * 0.025);
+    }
+    function changeNavStandby(id, part, direction) {
+      if (!id.startsWith('vor')) return;
+      changeStandby(id, part === 'mhz' ? direction * 1.000 : direction * 0.05);
+    }
+	function changeAdfStandby(id, part, direction) {
+	   if (!id.startsWith('adf')) return;
+	   changeStandby(id, part === 'mhz' ? direction * 1.0 : direction * 0.5);
+	}
+	
+    function renderFireState(fire) {
+      for (const [target, posRaw] of Object.entries(fire || {})) {
+        const pos = Number(posRaw);
+        const overlay = document.querySelector(`[data-fire-overlay="${target}"]`);
+        const glow = document.querySelector(`[data-fire-glow="${target}"]`);
+        if (!overlay) continue;
+        overlay.classList.remove('pulled','turned-left','turned-right');
+        if (glow) glow.classList.remove('pulled','turned-left','turned-right');
+        if (pos === 2) { overlay.classList.add('pulled'); if (glow) glow.classList.add('pulled'); }
+        if (pos === 3) { overlay.classList.add('pulled','turned-left'); if (glow) glow.classList.add('pulled','turned-left'); }
+        if (pos === 4) { overlay.classList.add('pulled','turned-right'); if (glow) glow.classList.add('pulled','turned-right'); }
+      }
+    }
+    function renderFireWarn(fireWarn) {
+      for (const [target, valRaw] of Object.entries(fireWarn || {})) {
+        const overlay = document.querySelector(`[data-fire-overlay="${target}"]`);
+        const glow = document.querySelector(`[data-fire-glow="${target}"]`);
+        if (overlay) overlay.classList.toggle('active', Number(valRaw) === 1);
+        if (glow) glow.classList.toggle('active', Number(valRaw) === 1);
+      }
+    }
+
+    function renderAnnunciators(annun) {
+      for (const [name, valRaw] of Object.entries(annun || {})) {
+        const el = document.querySelector(`[data-annun="${name}"]`);
+        if (el) el.classList.toggle('active', Number(valRaw) !== 0);
+      }
+    }
+	
+	function renderExtLeds(extLed) {
+  for (const [name, valRaw] of Object.entries(extLed || {})) {
+    const el = document.querySelector(`[data-ext-led="${name}"]`);
+    if (el) el.classList.toggle('active', Number(valRaw) !== 0);
+  }
+}
+
+    function renderXpdrState(xpdr) {
+      const label = document.getElementById('xpdr-atc-label');
+      if (label && xpdr.atcSel !== undefined) {
+        label.textContent = 'ATC ' + xpdr.atcSel;
+      }
+
+      // MODE knob (large): 5 positions - ALT OFF(0), XPDR(1->not used), ALT RPTG OFF(1), ALT RPTG(2), TA ONLY(3), TA/RA(4)
+      // Labels on panel: ALT OFF / XPNDR / TA ONLY / TA/RA
+      // modeSel: 0=STBY, 1=ALT RPTG OFF, 2=ALT RPTG, 3=TA ONLY, 4=TA/RA
+      // Map to rotation angles (knob points up at 0, CW positive)
+      const modeKnob = document.getElementById('xpdr-knob-mode');
+      if (modeKnob && xpdr.modeSel !== undefined) {
+        const modeAngles = { 0: -50, 1: -20, 2: 0, 3: 32, 4: 60 };
+        const deg = modeAngles[xpdr.modeSel] ?? 0;
+        modeKnob.style.transform = `translate(-50%,-50%) rotate(${deg}deg)`;
+      }
+
+      // ATC 1/2 knob (small): 2 positions
+      const atcKnob = document.getElementById('xpdr-knob-atc');
+      if (atcKnob && xpdr.atcSel !== undefined) {
+        const deg = xpdr.atcSel === 1 ? -3 : 30;
+        atcKnob.style.transform = `translate(-50%,-50%) rotate(${deg}deg)`;
+      }
+
+      // ALT SOURCE 1/2 knob (small): 2 positions
+      const altSrcKnob = document.getElementById('xpdr-knob-altsrc');
+      if (altSrcKnob && xpdr.altSrc !== undefined) {
+        const deg = xpdr.altSrc === 1 ? -3 : 30;
+        altSrcKnob.style.transform = `translate(-50%,-50%) rotate(${deg}deg)`;
+      }
+
+      // XPNDR STBY/ON/AUTO knob: handled by renderStbyKnob from LVar data
+    }
+
+    // ACP REC bit flags
+    const ACP_RECV = {
+      VHF1: 0x0001, VHF2: 0x0002, VHF3: 0x0004,
+      HF1: 0x0008, HF2: 0x0010,
+      FLT: 0x0020, SVC: 0x0040, PA: 0x0080,
+      NAV1: 0x0100, NAV2: 0x0200,
+      ADF1: 0x0400, ADF2: 0x0800,
+      MKR: 0x1000, SPKR: 0x2000
+    };
+
+    function renderWarnState(warn) {
+      if (!warn) return;
+      // Captain annunciators
+      const captMap = {
+        'warn-fireWarn': warn.fireWarn,
+        'warn-masterCaution': warn.masterCaution,
+        'warn-flct': warn.fltCont,
+        'warn-irs': warn.irs,
+        'warn-fuel': warn.fuel,
+        'warn-elec': warn.elec,
+        'warn-apu': warn.apu,
+        'warn-ovht': warn.ovhtDet
+      };
+      for (const [id, val] of Object.entries(captMap)) {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', Number(val) !== 0);
+      }
+      // FO annunciators
+      const foMap = {
+        'warn-fireWarn-FO': warn.fireWarn2,
+        'warn-masterCaution-FO': warn.masterCaution2,
+        'warn-antiIce': warn.antiIce,
+        'warn-hyd': warn.hyd,
+        'warn-doors': warn.doors,
+        'warn-eng': warn.eng,
+        'warn-overhead': warn.overhead,
+        'warn-airCond': warn.airCond
+      };
+      for (const [id, val] of Object.entries(foMap)) {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', Number(val) !== 0);
+      }
+    }
+
+    function renderCargoState(cargo) {
+      if (!cargo) return;
+      const map = {
+        'cargo-fwd':      cargo.fwd,
+        'cargo-aft':      cargo.aft,
+        'cargo-armedFwd': cargo.armedFwd,
+        'cargo-armedAft': cargo.armedAft,
+        'cargo-detFault': cargo.detFault,
+        'cargo-disch':    cargo.disch,
+        'cargo-extFwd':   cargo.extFwd,
+        'cargo-extAft':   cargo.extAft
+      };
+      for (const [id, val] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', Number(val) !== 0);
+      }
+
+      // DET SELECT knobs rotation: 0=A(-45°), 1=NORM(0°), 2=B(+45°)
+      const detDegMap = { 0: -45, 1: 0, 2: 45 };
+      const knobFwd = document.getElementById('cargo-knob-fwd');
+      if (knobFwd && cargo.detSelFwd !== undefined) {
+        knobFwd.style.transform = `rotate(${detDegMap[Number(cargo.detSelFwd)] ?? 0}deg)`;
+      }
+      const knobAft = document.getElementById('cargo-knob-aft');
+      if (knobAft && cargo.detSelAft !== undefined) {
+        knobAft.style.transform = `rotate(${detDegMap[Number(cargo.detSelAft)] ?? 0}deg)`;
+      }
+    }
+
+    function renderAcpState(acp) {
+      if (!acp) return;
+      const captRec = acp.captRec || 0;
+      const foRec = acp.foRec || 0;
+
+      // Captain ACP (left panels)
+      const captMap = {
+        'capt_rec_vhf1': ACP_RECV.VHF1,
+        'capt_rec_vhf2': ACP_RECV.VHF2,
+        'capt_rec_nav1': ACP_RECV.NAV1,
+        'capt_rec_nav2': ACP_RECV.NAV2
+      };
+      for (const [acp_id, bit] of Object.entries(captMap)) {
+        const el = document.querySelector(`[data-acp="${acp_id}"]`);
+        if (el) el.classList.toggle('rec-active', (captRec & bit) !== 0);
+      }
+
+      // FO ACP (right panels)
+      const foMap = {
+        'fo_rec_vhf1': ACP_RECV.VHF1,
+        'fo_rec_vhf2': ACP_RECV.VHF2,
+        'fo_rec_nav1': ACP_RECV.NAV1,
+        'fo_rec_nav2': ACP_RECV.NAV2
+      };
+      for (const [acp_id, bit] of Object.entries(foMap)) {
+        const el = document.querySelector(`[data-acp="${acp_id}"]`);
+        if (el) el.classList.toggle('rec-active', (foRec & bit) !== 0);
+      }
+    }
+	
+    // XPNDR STBY/ON/AUTO knob - separate render from LVar data
+    function renderStbyKnob(mode) {
+      const stbyKnob = document.getElementById('xpdr-knob-stby');
+      if (!stbyKnob) return;
+      const m = Math.round(Number(mode) || 0);
+      // LVar values: 0=STBY, 50=ON, 100=AUTO
+      let deg = 0;
+      if (m <= 10) deg = -15;
+      else if (m <= 60) deg = 15;
+      else deg = 45;
+      stbyKnob.style.transform = `translate(-50%,-50%) rotate(${deg}deg)`;
+    }
+
+    function renderAbvBlwKnob(mode) {
+      const overlay = document.getElementById('xpdr-abv-overlay');
+      if (!overlay) return;
+      const m = Math.round(Number(mode) || 0);
+      let pos = 'n';
+      if (m <= 10) pos = 'abv';
+      else if (m <= 60) pos = 'n';
+      else pos = 'blw';
+      overlay.querySelectorAll('img').forEach(img => {
+        img.classList.toggle('active', img.dataset.abvPos === pos);
+      });
+    }
+
+	function renderRudderTrim(value) {
+  const pointer = document.getElementById('rudder-trim-pointer');
+
+  const pct = Math.max(-100, Math.min(100, Number(value) || 0));
+
+  // Move the pointer indicator
+  if (pointer) {
+    const left = 48.3 + (pct * 0.15);
+    pointer.style.left = `${left}%`;
+  }
+}
+
+    // Rudder knob momentary rotation (spring-loaded behavior)
+    function setKnobRotation(degrees) {
+      const knob = document.getElementById('rudder-knob-overlay');
+      if (knob) knob.style.transform = `translate(-50%,-50%) rotate(${degrees}deg)`;
+    }
+
+    function pulseButton(selector) {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      el.classList.add('pressed');
+      setTimeout(() => el.classList.remove('pressed'), 180);
+    }
+
+    function flashElement(el, cssClass, duration) {
+      if (!el) return;
+      el.classList.remove(cssClass);
+      void el.offsetWidth;
+      el.classList.add(cssClass);
+      setTimeout(() => el.classList.remove(cssClass), duration || 300);
+    }
+
+    function flashBtn(target) { flashElement(target, 'btn-flash', 300); }
+    function flashKnob(target) { flashElement(target, 'knob-active', 250); }
+    function flashDigit(target) { flashElement(target, 'digit-press', 250); }
+
+    function setTrimActive(direction, active) {
+      const left = document.querySelector('.rudder-trim-left');
+      const right = document.querySelector('.rudder-trim-right');
+      if (direction === 'left' && left) left.classList.toggle('trimming', active);
+      if (direction === 'right' && right) right.classList.toggle('trimming', active);
+    }
+
+    function animateTestSwitch(direction) {
+      const lever = document.getElementById('fire-test-lever');
+      if (!lever) return;
+      lever.classList.remove('to-left', 'to-right');
+      void lever.offsetWidth;
+      lever.classList.add(direction === 'left' ? 'to-left' : 'to-right');
+      setTimeout(() => lever.classList.remove('to-left', 'to-right'), 260);
+    }
+
+    function setAnnunciator(name, active) {
+      const el = document.querySelector(`[data-annun="${name}"]`);
+      if (el) el.classList.toggle('active', active);
+    }
+
+    function runFaultInopVisualTest() {
+      setAnnunciator('fault', true);
+      setAnnunciator('apuDetInop', true);
+      setTimeout(() => {
+        setAnnunciator('fault', false);
+        setAnnunciator('apuDetInop', false);
+      }, 3000);
+    }
+
+    const repeatTuneActions = new Set(['vhfMhzInc','vhfKhzInc','vhfMhzDec','vhfKhzDec','navMhzInc','navKhzInc','navMhzDec','navKhzDec','adfMhzInc','adfKhzInc','adfMhzDec','adfKhzDec','rudder_trim_left','rudder_trim_right','ail_trim_left','ail_trim_right']);
+    function runTuneAction(action, id) {
+      if (action === 'vhfMhzInc') return changeVhfStandby(selectedVhfForPanelId(id),'mhz',1);
+      if (action === 'vhfKhzInc') return changeVhfStandby(selectedVhfForPanelId(id),'khz',1);
+      if (action === 'vhfMhzDec') return changeVhfStandby(selectedVhfForPanelId(id),'mhz',-1);
+      if (action === 'vhfKhzDec') return changeVhfStandby(selectedVhfForPanelId(id),'khz',-1);
+      if (action === 'navMhzInc') return changeNavStandby(id,'mhz',1);
+      if (action === 'navKhzInc') return changeNavStandby(id,'khz',1);
+      if (action === 'navMhzDec') return changeNavStandby(id,'mhz',-1);
+      if (action === 'navKhzDec') return changeNavStandby(id,'khz',-1);
+	  if (action === 'adfMhzInc') return send({ type:'pmdgAdfRotary', action:'outer_inc' });
+	  if (action === 'adfMhzDec') return send({ type:'pmdgAdfRotary', action:'outer_dec' });
+	  if (action === 'adfKhzInc') return send({ type:'pmdgAdfRotary', action:'inner_inc' });
+	  if (action === 'adfKhzDec') return send({ type:'pmdgAdfRotary', action:'inner_dec' });
+	  if (action === 'rudder_trim_left') return send({ type:'pmdgRudderTrim', direction:'left' });
+	  if (action === 'rudder_trim_right') return send({ type:'pmdgRudderTrim', direction:'right' });
+	  if (action === 'ail_trim_left') return send({ type:'pmdgAileronTrim', direction:'left' });
+	  if (action === 'ail_trim_right') return send({ type:'pmdgAileronTrim', direction:'right' });
+    }
+    const rudderActions = new Set(['rudder_trim_left','rudder_trim_right']);
+	const ailActions = new Set(['ail_trim_left','ail_trim_right']);
+	
+    function startTuneRepeat(action, id) {
+      let active = true, count = 0, timer;
+      const step = () => {
+        if (!active) return;
+        runTuneAction(action, id);
+        count += 1;
+        const delay = count < 4 ? 260 : count < 10 ? 150 : count < 20 ? 90 : 55;
+        timer = setTimeout(step, delay);
+      };
+      step();
+      const stop = () => {
+        active = false; clearTimeout(timer);
+        if (rudderActions.has(action)) {
+          send({ type:'pmdgRudderTrim', direction:'release' });
+          setTrimActive('left', false);
+          setTrimActive('right', false);
+          setKnobRotation(0);
+        }
+		if (ailActions.has(action)) {
+          send({ type:'pmdgAileronTrim', direction:'release' });
+          setTrimActive('left', false);
+          setTrimActive('right', false);
+        }
+        window.removeEventListener('pointerup', stop);
+        window.removeEventListener('pointercancel', stop);
+        window.removeEventListener('blur', stop);
+      };
+      window.addEventListener('pointerup', stop, { once:true });
+      window.addEventListener('pointercancel', stop, { once:true });
+      window.addEventListener('blur', stop, { once:true });
+    }
+
+    document.body.addEventListener('pointerdown', e => {
+      const target = e.target.closest('[data-action]');
+      if (!target) return;
+      const { radio:id, action } = target.dataset;
+      if (!repeatTuneActions.has(action)) return;
+      e.preventDefault();
+      flashKnob(target);
+      if (action === 'rudder_trim_left') { setTrimActive('left', true); setKnobRotation(-15); }
+      if (action === 'rudder_trim_right') { setTrimActive('right', true); setKnobRotation(15); }
+      startTuneRepeat(action, id);
+    });
+
+    document.body.addEventListener('click', e => {
+      const target = e.target.closest('[data-action]');
+      if (!target) return;
+      const { radio:id, action, target:fireTarget } = target.dataset;
+      if (repeatTuneActions.has(action)) return;
+      if (action === 'fire_pull') { flashBtn(target); return send({ type:'pmdgFire', action:'pull', target:fireTarget }); }
+      if (action === 'fire_disc_left') { flashBtn(target); return send({ type:'pmdgFire', action:'dischargeLeft', target:fireTarget }); }
+      if (action === 'fire_disc_right') { flashBtn(target); return send({ type:'pmdgFire', action:'dischargeRight', target:fireTarget }); }
+      if (action === 'fire_test') {
+        pulseButton('.fire-test-right');
+        animateTestSwitch('right');
+        const fireDebug = document.getElementById('fire-debug');
+        if (fireDebug) fireDebug.textContent = 'FIRE TEST SENT';
+        return send({ type:'pmdgFireTest' });
+      }
+
+      if (action === 'fire_test_fault') {
+        pulseButton('.fire-test-left');
+        animateTestSwitch('left');
+        const fireDebug = document.getElementById('fire-debug');
+        if (fireDebug) fireDebug.textContent = 'FAULT/INOP TEST SENT';
+        return send({ type:'pmdgFireFaultInopTest' });
+      }
+	  if (action === 'ext_test_left') {
+		flashBtn(target);
+		return send({ type:'pmdgExtTest', side:'right' });
+	  }
+
+	  if (action === 'ext_test_right') {
+		flashBtn(target);
+		return send({ type:'pmdgExtTest', side:'left' });
+	  }
+	  if (action === 'ovht_det') {
+  flashKnob(target);
+  const pos = target.dataset.pos;
+  const switchId = fireTarget === 'eng1' ? 'ovht-switch-1' : 'ovht-switch-2';
+  const switchEl = document.getElementById(switchId);
+  if (switchEl) {
+    switchEl.classList.remove('pos-a','pos-normal','pos-b');
+    switchEl.classList.add(`pos-${pos}`);
+  }
+  const fireDebug = document.getElementById('fire-debug');
+  if (fireDebug) fireDebug.textContent = `${fireTarget.toUpperCase()} OVHT DET ${pos.toUpperCase()} SENT`;
+
+  return send({
+    type: 'pmdgOvhtDet',
+    target: fireTarget,
+    pos: pos
+  });
+}
+
+      if (action === 'select_vhf_panel') {
+        flashBtn(target);
+        vhfPanelSource[target.dataset.panel] = target.dataset.source;
+        renderVhfPanels();
+        return;
+      }
+	  
+	  
+	  if (action === 'vhf_panel_off') {
+  const panel = target.dataset.panel;
+
+  vhfPanelOff[panel] = !vhfPanelOff[panel];
+  renderVhfPanels();
+
+  const fireDebug = document.getElementById('fire-debug');
+  if (fireDebug) fireDebug.textContent = `${panel.toUpperCase()} RADIO PANEL ${vhfPanelOff[panel] ? 'OFF' : 'ON'} SENT`;
+
+  return send({
+    type: 'pmdgRadioPanelOff',
+    panel
+  });
+}
+
+if (action === 'xpdr_digit') {
+  const digit = target.dataset.digit;
+  flashDigit(target);
+
+  if (!/^[0-7]$/.test(digit)) return;
+
+  xpdrInput = (xpdrInput + digit).slice(-4);
+
+  state.xpdr.active = xpdrInput.padStart(4, '0');
+  renderRadio('xpdr');
+
+  if (xpdrInput.length === 4) {
+    send({
+      type: 'setStandby',
+      radio: 'xpdr',
+      value: xpdrInput
+    });
+
+    xpdrInput = '';
+  }
+
+  return;
+}
+
+if (action === 'xpdr_clear') {
+  flashDigit(target);
+  xpdrInput = '';
+  state.xpdr.active = '0000';
+  renderRadio('xpdr');
+  return;
+}
+
+
+if (action === 'xpdr_mode_up') {
+  flashKnob(target);
+  return send({ type:'pmdgAtcMode', direction:'up' });
+}
+
+if (action === 'xpdr_mode_down') {
+  flashKnob(target);
+  return send({ type:'pmdgAtcMode', direction:'down' });
+}
+
+if (action === 'xpdr_ident') {
+  flashBtn(target);
+  return send({ type:'pmdgAtcIdent' });
+}
+
+if (action === 'xpdr_abv_blw') {
+  flashKnob(target);
+  return send({
+    type:'pmdgAtcAbvBlw',
+    direction: target.dataset.direction
+  });
+}
+
+if (action === 'xpdr_atc') {
+  flashKnob(target);
+  return send({
+    type:'pmdgAtcXpndr',
+    direction: target.dataset.direction
+  });
+}
+
+if (action === 'xpdr_altsrc') {
+  flashKnob(target);
+  return send({
+    type:'pmdgAtcAltSource',
+    direction: target.dataset.direction
+  });
+}
+
+if (action === 'xpdr_xpndr_mode') {
+  flashKnob(target);
+  return send({
+    type:'pmdgAtcXpndrMode',
+    direction: target.dataset.direction
+  });
+}
+
+      if (action === 'swap') {
+        flashElement(target, 'swap-spin', 300);
+        const swapRadio = (id === 'vhf1' || id === 'vhf2') ? selectedVhfForPanelId(id) : id;
+        return send({ type:'swap', radio:swapRadio });
+      }
+
+if (action === 'wxr_btn') {
+  flashBtn(target);
+  return send({ type:'pmdgWxr', button: target.dataset.wxr });
+}
+
+if (action === 'acp_btn') {
+  flashBtn(target);
+  return send({ type:'pmdgAcp', button: target.dataset.acp });
+}
+
+if (action === 'warn_btn') {
+  flashBtn(target);
+  return send({ type:'pmdgWarn', action: target.dataset.warn });
+}
+
+if (action === 'cargo_btn') {
+  flashBtn(target);
+  return send({ type:'pmdgCargo', action: target.dataset.cargo });
+}
+
+if (action === 'cargo_det') {
+  flashKnob(target);
+  return send({
+    type: 'pmdgCargoDet',
+    target: target.dataset.target,
+    pos: target.dataset.pos
+  });
+}
+	  
+    });
+
+    // RECALL — momentary: hold to light all, release to show only active faults
+    (function() {
+      const btn = document.getElementById('recall-btn-capt');
+      if (!btn) return;
+      let pressed = false;
+
+      function onPress(e) {
+        e.preventDefault();
+        if (pressed) return;
+        pressed = true;
+        btn.classList.add('pressed');
+        send({ type:'pmdgWarn', action:'recall_capt', press: 1 });
+      }
+      function onRelease(e) {
+        e.preventDefault();
+        if (!pressed) return;
+        pressed = false;
+        btn.classList.remove('pressed');
+        send({ type:'pmdgWarn', action:'recall_capt', press: 0 });
+		
+      }
+
+      btn.addEventListener('touchstart', onPress, { passive: false });
+      btn.addEventListener('touchend', onRelease, { passive: false });
+      btn.addEventListener('touchcancel', onRelease, { passive: false });
+      btn.addEventListener('mousedown', onPress);
+      btn.addEventListener('mouseup', onRelease);
+      btn.addEventListener('mouseleave', onRelease);
+    })();
+
+    // RECALL FO — momentary: hold to light all, release to show only active faults
+    (function() {
+      const btn = document.getElementById('recall-btn-fo');
+      if (!btn) return;
+      let pressed = false;
+
+      function onPress(e) {
+        e.preventDefault();
+        if (pressed) return;
+        pressed = true;
+        btn.classList.add('pressed');
+        send({ type:'pmdgWarn', action:'recall_fo', press: 1 });
+      }
+      function onRelease(e) {
+        e.preventDefault();
+        if (!pressed) return;
+        pressed = false;
+        btn.classList.remove('pressed');
+        send({ type:'pmdgWarn', action:'recall_fo', press: 0 });
+      }
+
+      btn.addEventListener('touchstart', onPress, { passive: false });
+      btn.addEventListener('touchend', onRelease, { passive: false });
+      btn.addEventListener('touchcancel', onRelease, { passive: false });
+      btn.addEventListener('mousedown', onPress);
+      btn.addEventListener('mouseup', onRelease);
+      btn.addEventListener('mouseleave', onRelease);
+    })();
+
+    // CARGO TEST — momentary: hold to test, release to stop
+    (function() {
+      const btn = document.getElementById('cargo-test-btn');
+      if (!btn) return;
+      let pressed = false;
+
+      function onPress(e) {
+        e.preventDefault();
+        if (pressed) return;
+        pressed = true;
+        btn.classList.add('pressed');
+        send({ type:'pmdgCargo', action:'test', press: 1 });
+      }
+      function onRelease(e) {
+        e.preventDefault();
+        if (!pressed) return;
+        pressed = false;
+        btn.classList.remove('pressed');
+        send({ type:'pmdgCargo', action:'test', press: 0 });
+      }
+
+      btn.addEventListener('touchstart', onPress, { passive: false });
+      btn.addEventListener('touchend', onRelease, { passive: false });
+      btn.addEventListener('touchcancel', onRelease, { passive: false });
+      btn.addEventListener('mousedown', onPress);
+      btn.addEventListener('mouseup', onRelease);
+      btn.addEventListener('mouseleave', onRelease);
+    })();
+
+
+    function connect() {
+      try {
+        ws = new WebSocket(BRIDGE_URL);
+        ws.onopen = () => setConnection(true);
+        ws.onclose = () => { setConnection(false); setTimeout(connect, 2000); };
+        ws.onerror = () => setConnection(false);
+        ws.onmessage = event => {
+          const data = JSON.parse(event.data);
+          if (data.ok === false) {
+            const fireDebug = document.getElementById('fire-debug');
+            if (fireDebug) fireDebug.textContent = `BRIDGE ERROR: ${data.error}`;
+          }
+          if (data.fire) renderFireState(data.fire);
+          if (data.fireWarn) renderFireWarn(data.fireWarn);
+          if (data.annun) renderAnnunciators(data.annun);
+		  if (data.extLed) renderExtLeds(data.extLed);
+		  if (data.xpdr) renderXpdrState(data.xpdr);
+		  if (data.acp) renderAcpState(data.acp);
+		  if (data.warn) renderWarnState(data.warn);
+		  if (data.cargo) renderCargoState(data.cargo);
+		  if (data.rudderTrim !== undefined) {
+				renderRudderTrim(data.rudderTrim);
+		  }
+		  if (data.xpndrStbyMode !== undefined) {
+				renderStbyKnob(data.xpndrStbyMode);
+		  }
+		  if (data.xpndrAbvBlw !== undefined) {
+				renderAbvBlwKnob(data.xpndrAbvBlw);
+		  }
+          if (data.radios) {
+            for (const [id, values] of Object.entries(data.radios)) {
+              if (!state[id]) continue;
+              if (values.active !== undefined && values.active !== null && values.active !== 'NaN') {
+  state[id].active = values.active;
+}
+
+if (values.standby !== undefined && values.standby !== null && values.standby !== 'NaN') {
+  state[id].standby = String(values.standby);
+}
+
+renderRadio(id);
+            }
+          }
+        };
+      } catch (err) { setConnection(false); }
+    }
+    renderVhfPanels();
+    connect();
+  </script>
+</body>
+</html>
