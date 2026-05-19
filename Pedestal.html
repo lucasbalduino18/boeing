@@ -1696,6 +1696,9 @@
 	  if (id.startsWith('adf')) return value.toFixed(0);
       return String(value);
     }
+    // Radio cooldown — ignore bridge broadcasts briefly after local tuning
+    const radioCooldown = {};
+
     function changeStandby(id, delta) {
   const r = state[id];
 
@@ -1709,6 +1712,9 @@
   r.standby = numericFormat(id, value);
 
   renderRadio(id);
+
+  // Set cooldown to ignore bridge broadcasts for this radio
+  radioCooldown[id] = Date.now() + 1500;
 
   send({
     type: 'setStandby',
@@ -2144,6 +2150,7 @@ if (action === 'xpdr_digit') {
   xpdrInput = (xpdrInput + digit).slice(-4);
 
   state.xpdr.active = xpdrInput.padStart(4, '0');
+  radioCooldown['xpdr'] = Date.now() + 2000;
   renderRadio('xpdr');
 
   if (xpdrInput.length === 4) {
@@ -2154,6 +2161,7 @@ if (action === 'xpdr_digit') {
     });
 
     xpdrInput = '';
+    radioCooldown['xpdr'] = Date.now() + 2000;
   }
 
   return;
@@ -2185,9 +2193,18 @@ if (action === 'xpdr_ident') {
 
 if (action === 'xpdr_abv_blw') {
   flashKnob(target);
+  // Track locally since bridge doesn't send this state back
+  const dir = target.dataset.direction;
+  if (!window._abvBlwState) window._abvBlwState = 50; // 0=ABV, 50=N, 100=BLW
+  if (dir === 'up') {
+    window._abvBlwState = window._abvBlwState >= 90 ? 50 : window._abvBlwState >= 40 ? 0 : 0;
+  } else {
+    window._abvBlwState = window._abvBlwState <= 10 ? 50 : window._abvBlwState <= 60 ? 100 : 100;
+  }
+  renderAbvBlwKnob(window._abvBlwState);
   return send({
     type:'pmdgAtcAbvBlw',
-    direction: target.dataset.direction
+    direction: dir
   });
 }
 
@@ -2209,9 +2226,17 @@ if (action === 'xpdr_altsrc') {
 
 if (action === 'xpdr_xpndr_mode') {
   flashKnob(target);
+  const dir = target.dataset.direction;
+  if (!window._stbyModeState && window._stbyModeState !== 0) window._stbyModeState = 0; // 0=STBY, 50=ON, 100=AUTO
+  if (dir === 'up') {
+    window._stbyModeState = window._stbyModeState <= 10 ? 50 : window._stbyModeState <= 60 ? 100 : 100;
+  } else {
+    window._stbyModeState = window._stbyModeState >= 90 ? 50 : window._stbyModeState >= 40 ? 0 : 0;
+  }
+  renderStbyKnob(window._stbyModeState);
   return send({
     type:'pmdgAtcXpndrMode',
-    direction: target.dataset.direction
+    direction: dir
   });
 }
 
@@ -2373,6 +2398,10 @@ if (action === 'cargo_det') {
           if (data.radios) {
             for (const [id, values] of Object.entries(data.radios)) {
               if (!state[id]) continue;
+
+              // Skip if this radio was recently tuned locally (cooldown)
+              if (radioCooldown[id] && Date.now() < radioCooldown[id]) continue;
+
               if (values.active !== undefined && values.active !== null && values.active !== 'NaN') {
   state[id].active = values.active;
 }
